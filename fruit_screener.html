@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>水果图片筛查工具</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #34495e;
+            font-weight: bold;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        textarea:focus {
+            border-color: #3498db;
+            outline: none;
+        }
+        .file-input-wrapper {
+            position: relative;
+            margin-bottom: 20px;
+        }
+        .file-input-wrapper input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px dashed #ddd;
+            border-radius: 6px;
+            background-color: #fafafa;
+        }
+        button {
+            padding: 12px 24px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+            width: 100%;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 30px;
+            border-radius: 10px;
+            width: 50%;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        }
+        .modal input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .close {
+            float: right;
+            cursor: pointer;
+            font-size: 24px;
+            color: #666;
+            transition: color 0.3s;
+        }
+        .close:hover {
+            color: #333;
+        }
+        .results {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            background-color: #f8f9fa;
+        }
+        .unmatched-fruits {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 6px;
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
+        }
+        .unmatched-fruits h4 {
+            color: #856404;
+            margin: 0 0 10px 0;
+        }
+        .unmatched-fruits ul {
+            margin: 0;
+            padding-left: 20px;
+            color: #666;
+        }
+        .matched-count {
+            color: #28a745;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>水果图片筛查工具</h2>
+        <div class="input-group">
+            <label for="fruitList">水果集：</label>
+            <textarea id="fruitList" placeholder="请输入水果名称，用逗号分隔（例如：苹果,香蕉,橙子）"></textarea>
+        </div>
+        <div class="file-input-wrapper">
+            <label for="folderInput">选择文件夹：</label>
+            <input type="file" id="folderInput" webkitdirectory directory multiple>
+        </div>
+        <button onclick="screenImages()">筛查</button>
+        <div id="results" class="results" style="display: none;">
+            <div class="matched-count"></div>
+            <div class="unmatched-fruits">
+                <h4>未找到匹配图片的水果：</h4>
+                <ul id="unmatchedList"></ul>
+            </div>
+        </div>
+    </div>
+
+    <div id="exportModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3>导出设置</h3>
+            <div class="input-group">
+                <label for="exportFolderName">文件夹名称：</label>
+                <input type="text" id="exportFolderName" placeholder="请输入文件夹名称">
+            </div>
+            <button onclick="exportZip()" class="export-btn">导出</button>
+        </div>
+    </div>
+
+    <script>
+        let selectedFiles = [];
+        const modal = document.getElementById('exportModal');
+        const resultsDiv = document.getElementById('results');
+        const unmatchedList = document.getElementById('unmatchedList');
+        const matchedCount = document.querySelector('.matched-count');
+
+        function screenImages() {
+            const fruitList = document.getElementById('fruitList').value.split(/[,，]/).map(fruit => fruit.trim());
+            const folderInput = document.getElementById('folderInput');
+            
+            if (!folderInput.files.length) {
+                alert('请选择文件夹！');
+                return;
+            }
+
+            if (!fruitList.length || fruitList[0] === '') {
+                alert('请输入水果名称！');
+                return;
+            }
+
+            // 找出未匹配的水果
+            const unmatchedFruits = new Set(fruitList);
+            selectedFiles = Array.from(folderInput.files).filter(file => {
+                const fileName = file.name.toLowerCase();
+                const matched = fruitList.some(fruit => {
+                    let nameimage = fileName.replace(/\.[^/.]+$/, '');
+                    if (nameimage == fruit.toLowerCase()) {
+                        unmatchedFruits.delete(fruit);
+                        return true;
+                    }
+                    return false;
+                });
+                return matched;
+            });
+
+            // 显示结果
+            if (selectedFiles.length === 0) {
+                alert('未找到匹配的图片！');
+                resultsDiv.style.display = 'none';
+                return;
+            }
+
+            // 更新匹配数量
+            matchedCount.textContent = `找到 ${selectedFiles.length} 张匹配的图片`;
+
+            // 更新未匹配列表
+            unmatchedList.innerHTML = '';
+            if (unmatchedFruits.size > 0) {
+                unmatchedFruits.forEach(fruit => {
+                    const li = document.createElement('li');
+                    li.textContent = fruit;
+                    unmatchedList.appendChild(li);
+                });
+                resultsDiv.style.display = 'block';
+            } else {
+                resultsDiv.style.display = 'none';
+            }
+
+            modal.style.display = 'block';
+        }
+
+        function closeModal() {
+            modal.style.display = 'none';
+        }
+
+        async function exportZip() {
+            const folderName = document.getElementById('exportFolderName').value;
+            if (!folderName) {
+                alert('请输入文件夹名称！');
+                return;
+            }
+
+            const timestamp = new Date().getTime();
+            const zip = new JSZip();
+            const folder = zip.folder(`${folderName}_${timestamp}`);
+
+            for (const file of selectedFiles) {
+                const content = await file.arrayBuffer();
+                folder.file(file.name, content);
+            }
+
+            const content = await zip.generateAsync({type: 'blob'});
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(content);
+            link.download = `${folderName}_${timestamp}.zip`;
+            link.click();
+            closeModal();
+        }
+
+        // 点击模态框外部关闭
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+    </script>
+</body>
+</html> 
