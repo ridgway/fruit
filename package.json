@@ -6,16 +6,17 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
-    "build:win": "electron-builder --win",
+    "build:win": "electron-builder --win --x64 --config.win.target=portable --config.win.signAndEditExecutable=false",
     "build:mac": "electron-builder --mac"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@electron/remote": "^2.1.1"
   },
   "devDependencies": {
     "electron": "^28.1.0",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^24.9.1"
   },
   "build": {
     "appId": "com.fruit.tools",
@@ -24,10 +25,9 @@
       "output": "dist"
     },
     "win": {
-      "target": [
-        "nsis"
-      ],
+      "target": "portable",
       "icon": "build/icon.ico",
+      "artifactName": "${productName}-${version}.exe",
       "signAndEditExecutable": false
     },
     "mac": {
@@ -36,13 +36,9 @@
       ],
       "icon": "build/icon.icns"
     },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "水果工具"
-    }
+    "asar": false,
+    "removePackageScripts": true,
+    "removePackageKeywords": true
   },
   "electronDownload": {
     "mirror": "https://npmmirror.com/mirrors/electron/"

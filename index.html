@@ -519,11 +519,7 @@
                     <label for="exportFolderName">导出文件夹名称：</label>
                     <input type="text" id="exportFolderName" placeholder="请输入文件夹名称">
                 </div>
-                <div class="form-group">
-                    <label for="exportLocation">选择导出位置：</label>
-                    <input type="file" id="exportLocation" webkitdirectory directory>
-                    <div id="selectedPath" class="folder-path"></div>
-                </div>
+               
                 <button onclick="exportImages()">导出</button>
             </div>
         </div>
@@ -608,9 +604,9 @@
                 const text = document.getElementById('watermarkText').value;
                 if (text) {
                     const font = document.getElementById('watermarkFont').value;
+                    const fontSize = document.getElementById('watermarkFontSize').value;
                     const color = document.getElementById('watermarkColor').value;
                     const opacity = document.getElementById('watermarkOpacity').value;
-                    const fontSize = document.getElementById('watermarkFontSize').value;
                     const rotation = document.getElementById('watermarkRotation').value;
                     const hSpacing = document.getElementById('watermarkHSpacing').value;
                     const vSpacing = document.getElementById('watermarkVSpacing').value;
@@ -656,21 +652,31 @@
                     const cols = Math.ceil(previewWidth / hSpacing);
                     const rows = Math.ceil(previewHeight / vSpacing);
 
-                    for (let i = 0; i < rows; i++) {
-                        for (let j = 0; j < cols; j++) {
-                            const img = document.createElement('img');
-                            img.className = 'watermark-image';
-                            img.src = URL.createObjectURL(watermarkImage.files[0]);
-                            img.style.position = 'absolute';
-                            img.style.left = `${j * hSpacing}px`;
-                            img.style.top = `${i * vSpacing}px`;
-                            img.style.width = `${size}px`;
-                            img.style.height = 'auto';
-                            img.style.opacity = opacity / 100;
-                            img.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
-                            previewContent.appendChild(img);
+                    // 加载图片以获取原始尺寸
+                    const img = new Image();
+                    img.onload = function() {
+                        // 计算保持宽高比的尺寸
+                        const aspectRatio = img.width / img.height;
+                        const watermarkWidth = parseInt(size);
+                        const watermarkHeight = watermarkWidth / aspectRatio;
+
+                        for (let i = 0; i < rows; i++) {
+                            for (let j = 0; j < cols; j++) {
+                                const watermarkImg = document.createElement('img');
+                                watermarkImg.className = 'watermark-image';
+                                watermarkImg.src = URL.createObjectURL(watermarkImage.files[0]);
+                                watermarkImg.style.position = 'absolute';
+                                watermarkImg.style.left = `${j * hSpacing}px`;
+                                watermarkImg.style.top = `${i * vSpacing}px`;
+                                watermarkImg.style.width = `${watermarkWidth}px`;
+                                watermarkImg.style.height = `${watermarkHeight}px`;
+                                watermarkImg.style.opacity = opacity / 100;
+                                watermarkImg.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+                                previewContent.appendChild(watermarkImg);
+                            }
                         }
-                    }
+                    };
+                    img.src = URL.createObjectURL(watermarkImage.files[0]);
                 }
             }
         }
@@ -744,7 +750,7 @@
                 img.style.left = `${x}px`;
                 img.style.top = `${y}px`;
                 img.style.width = `${size}px`;
-                img.style.height = 'auto';
+                img.style.height = 'auto'; // 保持原始宽高比
                 img.style.opacity = opacity / 100;
                 previewContent.appendChild(img);
             }
@@ -815,112 +821,147 @@
             processedImages = [];
             originalImageNames = [];
 
-            const progress = document.querySelector('.progress');
-            const progressBar = document.querySelector('.progress-bar-fill');
+            // 创建进度条
+            const progress = document.createElement('div');
+            progress.className = 'progress';
+            progress.innerHTML = `
+                <div class="progress-bar">
+                    <div class="progress-bar-fill" style="width: 0%"></div>
+                </div>
+                <div class="progress-text">处理中: 0/0</div>
+            `;
+            document.querySelector('.container').appendChild(progress);
             progress.style.display = 'block';
 
-            for (let i = 0; i < imageFolder.files.length; i++) {
-                const file = imageFolder.files[i];
-                if (!file.type.startsWith('image/')) continue;
+            const progressBar = progress.querySelector('.progress-bar-fill');
+            const progressText = progress.querySelector('.progress-text');
 
-                originalImageNames.push(file.name);
-                const canvas = document.createElement('canvas');
-                canvas.width = 800;
-                canvas.height = 800;
-                const ctx = canvas.getContext('2d');
+            // 获取所有图片文件
+            const imageFiles = Array.from(imageFolder.files).filter(file => file.type.startsWith('image/'));
+            const totalImages = imageFiles.length;
+            progressText.textContent = `处理中: 0/${totalImages}`;
 
-                // 加载原始图片
-                const img = await loadImage(file);
-                ctx.drawImage(img, 0, 0, 800, 800);
+            // 分批处理图片
+            const batchSize = 5; // 每批处理的图片数量
+            for (let i = 0; i < totalImages; i += batchSize) {
+                const batch = imageFiles.slice(i, i + batchSize);
+                await Promise.all(batch.map(async (file, index) => {
+                    const currentIndex = i + index;
+                    originalImageNames.push(file.name);
+                    
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 800;
+                    canvas.height = 800;
+                    const ctx = canvas.getContext('2d');
 
-                // 添加水印（在最底层）
-                if (textWatermark.checked && watermarkText.value) {
-                    const font = document.getElementById('watermarkFont').value;
-                    const fontSize = document.getElementById('watermarkFontSize').value;
-                    const color = document.getElementById('watermarkColor').value;
-                    const opacity = document.getElementById('watermarkOpacity').value;
-                    const rotation = document.getElementById('watermarkRotation').value;
-                    const hSpacing = document.getElementById('watermarkHSpacing').value;
-                    const vSpacing = document.getElementById('watermarkVSpacing').value;
-                    const isBold = document.getElementById('watermarkBold').checked;
+                    // 加载原始图片
+                    const img = await loadImage(file);
+                    ctx.drawImage(img, 0, 0, 800, 800);
 
-                    ctx.save();
-                    ctx.font = `${isBold ? 'bold ' : ''}${fontSize}px ${font}`;
-                    ctx.fillStyle = color;
-                    ctx.globalAlpha = opacity / 100;
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
+                    // 添加水印（在最底层）
+                    if (textWatermark.checked && watermarkText.value) {
+                        const font = document.getElementById('watermarkFont').value;
+                        const fontSize = document.getElementById('watermarkFontSize').value;
+                        const color = document.getElementById('watermarkColor').value;
+                        const opacity = document.getElementById('watermarkOpacity').value;
+                        const rotation = document.getElementById('watermarkRotation').value;
+                        const hSpacing = document.getElementById('watermarkHSpacing').value;
+                        const vSpacing = document.getElementById('watermarkVSpacing').value;
+                        const isBold = document.getElementById('watermarkBold').checked;
 
-                    // 计算网格
-                    const cols = Math.ceil(800 / hSpacing);
-                    const rows = Math.ceil(800 / vSpacing);
+                        ctx.save();
+                        ctx.font = `${isBold ? 'bold ' : ''}${fontSize}px ${font}`;
+                        ctx.fillStyle = color;
+                        ctx.globalAlpha = opacity / 100;
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
 
-                    // 绘制网格水印
-                    for (let i = 0; i < rows; i++) {
-                        for (let j = 0; j < cols; j++) {
-                            const x = j * hSpacing;
-                            const y = i * vSpacing;
-                            
-                            ctx.save();
-                            ctx.translate(x, y);
-                            ctx.rotate(rotation * Math.PI / 180);
-                            ctx.fillText(watermarkText.value, 0, 0);
-                            ctx.restore();
+                        // 计算网格
+                        const cols = Math.ceil(800 / hSpacing);
+                        const rows = Math.ceil(800 / vSpacing);
+
+                        // 绘制网格水印
+                        for (let i = 0; i < rows; i++) {
+                            for (let j = 0; j < cols; j++) {
+                                const x = j * hSpacing;
+                                const y = i * vSpacing;
+                                
+                                ctx.save();
+                                ctx.translate(x, y);
+                                ctx.rotate(rotation * Math.PI / 180);
+                                ctx.fillText(watermarkText.value, 0, 0);
+                                ctx.restore();
+                            }
+                        }
+                        ctx.restore();
+                    }
+
+                    if (imageWatermark.checked && watermarkImage.files.length) {
+                        const watermark = await loadImage(watermarkImage.files[0]);
+                        const opacity = document.getElementById('imageWatermarkOpacity').value;
+                        const rotation = document.getElementById('imageWatermarkRotation').value;
+                        const hSpacing = document.getElementById('imageWatermarkHSpacing').value;
+                        const vSpacing = document.getElementById('imageWatermarkVSpacing').value;
+                        const size = document.getElementById('imageWatermarkSize').value;
+
+                        // 计算保持宽高比的尺寸
+                        const aspectRatio = watermark.width / watermark.height;
+                        const watermarkWidth = parseInt(size);
+                        const watermarkHeight = watermarkWidth / aspectRatio;
+
+                        // 计算网格
+                        const cols = Math.ceil(800 / hSpacing);
+                        const rows = Math.ceil(800 / vSpacing);
+
+                        // 绘制网格水印
+                        for (let i = 0; i < rows; i++) {
+                            for (let j = 0; j < cols; j++) {
+                                const x = j * hSpacing;
+                                const y = i * vSpacing;
+                                
+                                ctx.save();
+                                ctx.globalAlpha = opacity / 100;
+                                ctx.translate(x, y);
+                                ctx.rotate(rotation * Math.PI / 180);
+                                ctx.drawImage(watermark, -watermarkWidth/2, -watermarkHeight/2, watermarkWidth, watermarkHeight);
+                                ctx.restore();
+                            }
                         }
                     }
-                    ctx.restore();
-                }
 
-                if (imageWatermark.checked && watermarkImage.files.length) {
-                    const watermark = await loadImage(watermarkImage.files[0]);
-                    const opacity = document.getElementById('imageWatermarkOpacity').value;
-                    const rotation = document.getElementById('imageWatermarkRotation').value;
-                    const hSpacing = document.getElementById('imageWatermarkHSpacing').value;
-                    const vSpacing = document.getElementById('imageWatermarkVSpacing').value;
-                    const size = document.getElementById('imageWatermarkSize').value;
+                    // 添加Logo（在中间层）
+                    if (logoImage.files.length) {
+                        const logo = await loadImage(logoImage.files[0]);
+                        const size = document.getElementById('logoSize').value;
+                        const x = document.getElementById('logoX').value;
+                        const y = document.getElementById('logoY').value;
+                        const opacity = document.getElementById('logoOpacity').value;
 
-                    // 计算网格
-                    const cols = Math.ceil(800 / hSpacing);
-                    const rows = Math.ceil(800 / vSpacing);
-
-                    // 绘制网格水印
-                    for (let i = 0; i < rows; i++) {
-                        for (let j = 0; j < cols; j++) {
-                            const x = j * hSpacing;
-                            const y = i * vSpacing;
-                            
-                            ctx.save();
-                            ctx.globalAlpha = opacity / 100;
-                            ctx.translate(x, y);
-                            ctx.rotate(rotation * Math.PI / 180);
-                            ctx.drawImage(watermark, -size/2, -size/2, size, size);
-                            ctx.restore();
-                        }
+                        ctx.save();
+                        ctx.globalAlpha = opacity / 100;
+                        // 计算保持宽高比的尺寸
+                        const logoWidth = parseInt(size);
+                        const logoHeight = (logo.height * logoWidth) / logo.width;
+                        ctx.drawImage(logo, x, y, logoWidth, logoHeight);
+                        ctx.restore();
                     }
-                }
 
-                // 添加Logo（在中间层）
-                if (logoImage.files.length) {
-                    const logo = await loadImage(logoImage.files[0]);
-                    const size = document.getElementById('logoSize').value;
-                    const x = document.getElementById('logoX').value;
-                    const y = document.getElementById('logoY').value;
-                    const opacity = document.getElementById('logoOpacity').value;
+                    // 添加边框（在最上层）
+                    if (borderImage.files.length) {
+                        const border = await loadImage(borderImage.files[0]);
+                        ctx.drawImage(border, 0, 0, 800, 800);
+                    }
 
-                    ctx.save();
-                    ctx.globalAlpha = opacity / 100;
-                    ctx.drawImage(logo, x, y, size, size);
-                    ctx.restore();
-                }
+                    processedImages.push(canvas.toDataURL('image/png'));
+                    
+                    // 更新进度
+                    const progress = ((currentIndex + 1) / totalImages) * 100;
+                    progressBar.style.width = `${progress}%`;
+                    progressText.textContent = `处理中: ${currentIndex + 1}/${totalImages}`;
+                }));
 
-                // 添加边框（在最上层）
-                if (borderImage.files.length) {
-                    const border = await loadImage(borderImage.files[0]);
-                    ctx.drawImage(border, 0, 0, 800, 800);
-                }
-
-                processedImages.push(canvas.toDataURL('image/png'));
-                progressBar.style.width = `${((i + 1) / imageFolder.files.length) * 100}%`;
+                // 每批处理完后暂停一下，让UI有机会更新
+                await new Promise(resolve => setTimeout(resolve, 50));
             }
 
             document.getElementById('exportModal').style.display = 'block';
@@ -937,56 +978,58 @@
 
         function closeModal() {
             document.getElementById('exportModal').style.display = 'none';
+            document.getElementById('exportFolderName').value = '';
+            const progressBar = document.querySelector('.progress');
+            if (progressBar) {
+                progressBar.remove();
+            }
         }
 
+        // 导出图片
         async function exportImages() {
             const folderName = document.getElementById('exportFolderName').value;
-            const exportLocation = document.getElementById('exportLocation').files[0];
-
             if (!folderName) {
-                alert('请输入导出文件夹名称！');
+                alert('请输入文件夹名称！');
                 return;
             }
 
-            if (!exportLocation) {
-                alert('请选择导出位置！');
+            if (!processedImages.length) {
+                alert('没有可导出的图片');
                 return;
             }
 
-            const timestamp = new Date().getTime();
-            const finalFolderName = `${folderName}_${timestamp}`;
+            try {
+                const timestamp = new Date().getTime();
+                const zip = new JSZip();
+                const folder = zip.folder(`${folderName}_${timestamp}`);
 
-            // 创建一个zip文件来保存所有图片
-            const zip = new JSZip();
-            
-            // 将所有图片添加到zip中
-            processedImages.forEach((imageData, index) => {
-                // 将base64图片数据转换为二进制数据
-                const imageDataWithoutPrefix = imageData.split(',')[1];
-                zip.file(originalImageNames[index], imageDataWithoutPrefix, {base64: true});
-            });
-
-            // 生成zip文件并下载
-            zip.generateAsync({type: "blob"})
-                .then(function(content) {
-                    const link = document.createElement('a');
-                    link.href = URL.createObjectURL(content);
-                    link.download = `${finalFolderName}.zip`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(link.href);
+                // 处理每个图片
+                for (let i = 0; i < processedImages.length; i++) {
+                    const imageData = processedImages[i];
+                    const fileName = originalImageNames[i];
                     
-                    alert('导出完成！');
-                    closeModal();
-                });
+                    // 将base64图片数据添加到zip
+                    const imageDataWithoutPrefix = imageData.split(',')[1];
+                    folder.file(fileName, imageDataWithoutPrefix, {base64: true});
+                }
+
+                // 生成zip文件并下载
+                const content = await zip.generateAsync({type: 'blob'});
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(content);
+                link.download = `${folderName}_${timestamp}.zip`;
+                link.click();
+                closeModal();
+            } catch (error) {
+                console.error('导出失败:', error);
+                alert('导出失败: ' + error.message);
+            }
         }
 
-        // 监听导出位置选择
-        document.getElementById('exportLocation').addEventListener('change', function(e) {
-            const path = e.target.files[0]?.path || '';
-            document.getElementById('selectedPath').textContent = path;
-        });
+        // 显示模态框
+        function showExportModal() {
+            document.getElementById('exportModal').style.display = 'block';
+        }
 
         // 确保在DOM加载完成后初始化预览
         document.addEventListener('DOMContentLoaded', function() {

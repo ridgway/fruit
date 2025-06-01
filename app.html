@@ -56,6 +56,20 @@
             white-space: nowrap;
             font-size: 13px;
         }
+        .refresh-btn {
+            margin-left: 8px;
+            width: 16px;
+            height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+        }
+        .refresh-btn:hover {
+            opacity: 1;
+        }
         .content {
             flex: 1;
             position: relative;
@@ -106,9 +120,11 @@
         <div class="tabs">
             <div class="tab active" onclick="switchTab('index')">
                 <span class="tab-title">首页</span>
+                <div class="refresh-btn" onclick="refreshTab('index', event)">↻</div>
             </div>
             <div class="tab" onclick="switchTab('screener')">
                 <span class="tab-title">水果筛选</span>
+                <div class="refresh-btn" onclick="refreshTab('screener', event)">↻</div>
             </div>
         </div>
         <div class="content">
@@ -118,7 +134,7 @@
     </div>
 
     <script>
-        const { remote } = require('electron');
+        const { remote } = require('@electron/remote');
         
         function switchTab(tabName) {
             // 更新标签样式
@@ -148,7 +164,14 @@
         }
 
         function closeWindow() {
-            remote.getCurrentWindow().close();
+            const win = remote.getCurrentWindow();
+            win.close();
+        }
+
+        function refreshTab(tabName, event) {
+            event.stopPropagation(); // 阻止事件冒泡，避免触发标签切换
+            const frame = document.getElementById(tabName + '-frame');
+            frame.src = frame.src; // 重新加载iframe内容
         }
     </script>
 </body>
