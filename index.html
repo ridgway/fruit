@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -836,8 +837,11 @@
             const progressBar = progress.querySelector('.progress-bar-fill');
             const progressText = progress.querySelector('.progress-text');
 
-            // 获取所有图片文件
-            const imageFiles = Array.from(imageFolder.files).filter(file => file.type.startsWith('image/'));
+            // 获取所有图片文件并按名称排序
+            const imageFiles = Array.from(imageFolder.files)
+                .filter(file => file.type.startsWith('image/'))
+                .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
+
             const totalImages = imageFiles.length;
             progressText.textContent = `处理中: 0/${totalImages}`;
 
@@ -845,9 +849,9 @@
             const batchSize = 5; // 每批处理的图片数量
             for (let i = 0; i < totalImages; i += batchSize) {
                 const batch = imageFiles.slice(i, i + batchSize);
-                await Promise.all(batch.map(async (file, index) => {
+                const batchResults = await Promise.all(batch.map(async (file, index) => {
                     const currentIndex = i + index;
-                    originalImageNames.push(file.name);
+                    const fileName = file.name;
                     
                     const canvas = document.createElement('canvas');
                     canvas.width = 800;
@@ -952,13 +956,22 @@
                         ctx.drawImage(border, 0, 0, 800, 800);
                     }
 
-                    processedImages.push(canvas.toDataURL('image/png'));
-                    
-                    // 更新进度
-                    const progress = ((currentIndex + 1) / totalImages) * 100;
-                    progressBar.style.width = `${progress}%`;
-                    progressText.textContent = `处理中: ${currentIndex + 1}/${totalImages}`;
+                    return {
+                        imageData: canvas.toDataURL('image/png'),
+                        fileName: fileName
+                    };
                 }));
+
+                // 将处理结果添加到数组中
+                batchResults.forEach(result => {
+                    processedImages.push(result.imageData);
+                    originalImageNames.push(result.fileName);
+                });
+
+                // 更新进度
+                const progress = ((i + batch.length) / totalImages) * 100;
+                progressBar.style.width = `${progress}%`;
+                progressText.textContent = `处理中: ${i + batch.length}/${totalImages}`;
 
                 // 每批处理完后暂停一下，让UI有机会更新
                 await new Promise(resolve => setTimeout(resolve, 50));
