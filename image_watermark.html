@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片批量盖印工具</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin-bottom: 25px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #f8f9fa;
+        }
+        .section h3 {
+            color: #34495e;
+            margin-bottom: 15px;
+        }
+        .file-input-wrapper {
+            margin-bottom: 15px;
+        }
+        .file-input-wrapper input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px dashed #ddd;
+            border-radius: 6px;
+            background-color: #fafafa;
+        }
+        .preview-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .preview-item {
+            position: relative;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            aspect-ratio: 1; /* 添加这行，确保容器是正方形 */
+        }
+        .preview-item img {
+            width: 100%;
+            height: 100%; /* 修改为100%填充容器 */
+            object-fit: cover; /* 保持图片比例，覆盖整个容器 */
+        }
+        .preview-item .filename {
+            padding: 8px;
+            font-size: 12px;
+            color: #333;
+            background: #f8f9fa;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .watermark-preview {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 5px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #333;
+        }
+        button {
+            padding: 12px 24px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+            width: 100%;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        .progress {
+            margin-top: 20px;
+            display: none;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            background-color: #3498db;
+            width: 0%;
+            transition: width 0.3s;
+        }
+        .progress-text {
+            text-align: center;
+            margin-top: 10px;
+            color: #666;
+        }
+        .results {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            display: none;
+        }
+        .results h4 {
+            color: #155724;
+            margin: 0 0 10px 0;
+        }
+        .download-btn {
+            background-color: #28a745;
+            margin-top: 10px;
+        }
+        .download-btn:hover {
+            background-color: #218838;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>图片批量盖印工具</h2>
+        
+        <div class="section">
+            <h3>1. 上传水印图片</h3>
+            <div class="file-input-wrapper">
+                <input type="file" id="watermarkInput" accept="image/*" onchange="loadWatermark()">
+            </div>
+            <div id="watermarkPreview" class="preview-container"></div>
+        </div>
+        
+        <div class="section">
+            <h3>2. 选择目标文件夹</h3>
+            <div class="file-input-wrapper">
+                <input type="file" id="folderInput" webkitdirectory directory multiple onchange="loadFolderImages()">
+            </div>
+            <div id="folderPreview" class="preview-container"></div>
+        </div>
+        
+        <button id="processBtn" onclick="processImages()" disabled>开始批量盖印</button>
+        
+        <div class="progress" id="progressDiv">
+            <div class="progress-bar">
+                <div class="progress-bar-fill" id="progressBarFill"></div>
+            </div>
+            <div class="progress-text" id="progressText">处理中...</div>
+        </div>
+        
+        <div class="results" id="resultsDiv">
+            <h4>处理完成！</h4>
+            <p id="resultsText"></p>
+            <button class="download-btn" onclick="downloadZipFile()" id="downloadZipBtn" style="display: none;">下载ZIP文件</button>
+        </div>
+    </div>
+
+    <script>
+        let watermarkImage = null;
+        let targetImages = [];
+        let processedImages = [];
+        let zipFile = null;
+        
+        function loadWatermark() {
+            const fileInput = document.getElementById('watermarkInput');
+            const file = fileInput.files[0];
+            
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                console.log('FileReader completed, data URL length:', e.target.result.length);
+                
+                watermarkImage = new Image();
+                watermarkImage.onload = function() {
+                    console.log('Watermark image loaded, dimensions:', watermarkImage.width, 'x', watermarkImage.height);
+                    displayWatermarkPreview();
+                    checkReadyToProcess();
+                };
+                watermarkImage.onerror = function() {
+                    console.error('Failed to load watermark image');
+                    alert('水印图片加载失败，请尝试其他图片格式');
+                };
+                watermarkImage.src = e.target.result;
+            };
+            reader.onerror = function() {
+                console.error('FileReader error');
+                alert('文件读取失败');
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        function displayWatermarkPreview() {
+            const preview = document.getElementById('watermarkPreview');
+            preview.innerHTML = '';
+            
+            console.log('Displaying watermark preview, src:', watermarkImage.src ? 'exists' : 'missing');
+            
+            const item = document.createElement('div');
+            item.className = 'preview-item';
+            
+            const img = document.createElement('img');
+            img.src = watermarkImage.src;
+            img.onerror = function() {
+                console.error('Preview image failed to load');
+                this.style.border = '2px solid red';
+                this.alt = '图片加载失败';
+            };
+            
+            const filename = document.createElement('div');
+            filename.className = 'filename';
+            filename.textContent = '水印图片';
+            
+            item.appendChild(img);
+            item.appendChild(filename);
+            preview.appendChild(item);
+        }
+        
+        function loadFolderImages() {
+            const folderInput = document.getElementById('folderInput');
+            const files = Array.from(folderInput.files).filter(file => file.type.startsWith('image/'));
+            
+            targetImages = [];
+            // 不再清空预览区域，因为不需要显示预览
+            
+            let loadedCount = 0;
+            
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        targetImages.push({
+                            file: file,
+                            image: img,
+                            src: e.target.result
+                        });
+                        
+                        // 移除预览显示代码
+                        // const item = document.createElement('div');
+                        // item.className = 'preview-item';
+                        // const imgElement = document.createElement('img');
+                        // imgElement.src = e.target.result;
+                        // const filename = document.createElement('div');
+                        // filename.className = 'filename';
+                        // filename.textContent = file.name;
+                        // item.appendChild(imgElement);
+                        // item.appendChild(filename);
+                        // preview.appendChild(item);
+                        
+                        loadedCount++;
+                        if (loadedCount === files.length) {
+                            checkReadyToProcess();
+                        }
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+        
+        function checkReadyToProcess() {
+            const processBtn = document.getElementById('processBtn');
+            if (watermarkImage && targetImages.length > 0) {
+                processBtn.disabled = false;
+            } else {
+                processBtn.disabled = true;
+            }
+        }
+        
+        function processImages() {
+            if (!watermarkImage || targetImages.length === 0) return;
+            
+            const progressDiv = document.getElementById('progressDiv');
+            const progressBarFill = document.getElementById('progressBarFill');
+            const progressText = document.getElementById('progressText');
+            const resultsDiv = document.getElementById('resultsDiv');
+            
+            progressDiv.style.display = 'block';
+            resultsDiv.style.display = 'none';
+            
+            processedImages = [];
+            let processedCount = 0;
+            
+            // 使用固定的默认参数
+            const opacity = 0.8;
+            
+            targetImages.forEach((targetImage, index) => {
+                setTimeout(() => {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    canvas.width = targetImage.image.width;
+                    canvas.height = targetImage.image.height;
+                    
+                    // 绘制原图
+                    ctx.drawImage(targetImage.image, 0, 0);
+                    
+                    // 水印图片完全覆盖目标图片（两张图叠加）
+                    ctx.globalAlpha = opacity;
+                    ctx.drawImage(watermarkImage, 0, 0, targetImage.image.width, targetImage.image.height);
+                    ctx.globalAlpha = 1;
+                    
+                    // 转换为blob
+                    canvas.toBlob(function(blob) {
+                        processedImages.push({
+                            name: targetImage.file.name,  // 直接使用原文件名，不加前缀
+                            blob: blob
+                        });
+                        
+                        processedCount++;
+                        const progress = (processedCount / targetImages.length) * 100;
+                        progressBarFill.style.width = progress + '%';
+                        progressText.textContent = `处理中... ${processedCount}/${targetImages.length}`;
+                        
+                        if (processedCount === targetImages.length) {
+                            // 所有图片处理完成，创建ZIP文件
+                            createZipFile();
+                        }
+                    }, 'image/jpeg', 0.9);
+                }, index * 100); // 延迟处理以避免阻塞
+            });
+        }
+        
+        function createZipFile() {
+            const progressDiv = document.getElementById('progressDiv');
+            const progressText = document.getElementById('progressText');
+            const resultsDiv = document.getElementById('resultsDiv');
+            const resultsText = document.getElementById('resultsText');
+            
+            progressText.textContent = '正在创建ZIP文件...';
+            
+            const zip = new JSZip();
+            // 移除文件夹创建，直接在ZIP根目录添加文件
+            // const folder = zip.folder('watermarked_images');
+            
+            let addedCount = 0;
+            processedImages.forEach(processedImage => {
+                // 直接添加到ZIP根目录
+                zip.file(processedImage.name, processedImage.blob);
+                addedCount++;
+                
+                if (addedCount === processedImages.length) {
+                    // 生成ZIP文件
+                    zip.generateAsync({type:"blob"}).then(function(content) {
+                        zipFile = content;
+                        
+                        progressDiv.style.display = 'none';
+                        resultsDiv.style.display = 'block';
+                        resultsText.textContent = 
+                            `成功处理了 ${targetImages.length} 张图片，正在自动下载ZIP文件...`;
+                        
+                        // 自动下载ZIP文件
+                        setTimeout(() => {
+                            downloadZipFile();
+                        }, 500); // 延迟500ms确保UI更新完成
+                    });
+                }
+            });
+        }
+        
+        function downloadZipFile() {
+            if (!zipFile) return;
+            
+            // 生成时间戳
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            const timestamp = `${year}${month}${day}_${hours}${minutes}${seconds}`;
+            
+            console.log('Generated timestamp:', timestamp);
+            
+            const url = URL.createObjectURL(zipFile);
+            const a = document.createElement('a');
+            a.href = url;
+            // 只使用时间戳作为ZIP文件名，移除'watermarked_images_'前缀
+            a.download = `${timestamp}.zip`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
