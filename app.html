@@ -129,12 +129,19 @@
             <div class="tab" onclick="switchTab('watermark')">
                 <span class="tab-title">图片盖印</span>
                 <div class="refresh-btn" onclick="refreshTab('watermark', event)">↻</div>
-            </div> 
+            </div>
+            <!-- 添加新的标签页 -->
+            <div class="tab" onclick="switchTab('new')">
+                <span class="tab-title">美团批量新建excl</span>
+                <div class="refresh-btn" onclick="refreshTab('new', event)">↻</div>
+            </div>
         </div>
         <div class="content">
             <iframe id="index-frame" src="index.html" class="active"></iframe>
             <iframe id="screener-frame" src="fruit_screener.html"></iframe>
             <iframe id="watermark-frame" src="image_watermark.html"></iframe>
+            <!-- 添加新的iframe -->
+            <iframe id="new-frame" src="new_created.html"></iframe>
         </div>
     </div>
 
