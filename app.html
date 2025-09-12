@@ -15,13 +15,46 @@
             height: 100vh;
             display: flex;
             flex-direction: column;
+            position: relative;
+            z-index: 10;
+            /* 移除可能导致冲突的样式 */
         }
         .tabs {
             display: flex;
             background-color: #f0f0f0;
             padding: 8px 8px 0;
+            padding-right: 150px; /* 为窗口控制按钮留出空间 */
             border-bottom: 1px solid #ccc;
-            -webkit-app-region: drag;
+        }
+        .window-controls {
+            /* -webkit-app-region: drag; */
+            position: fixed;
+            top: 0;
+            right: 0;
+            display: flex;
+            z-index: 10000; /* 确保在最高层级 */
+            background-color: transparent; /* 确保背景透明 */
+        }
+        .window-control {
+            width: 46px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: #666;
+            user-select: none;
+            -webkit-user-select: none;
+            background-color: transparent; /* 确保背景透明 */
+            position: relative; /* 确保定位正确 */
+            z-index: 10001; /* 确保按钮在最高层级 */
+        }
+        .window-control:hover {
+            background-color: rgba(0,0,0,0.1);
+        }
+        .window-control.close:hover {
+            background-color: #e81123;
+            color: white;
         }
         .tab {
             padding: 8px 20px;
@@ -31,7 +64,6 @@
             border-radius: 8px 8px 0 0;
             display: flex;
             align-items: center;
-            -webkit-app-region: no-drag;
             position: relative;
             min-width: 120px;
             max-width: 200px;
@@ -84,14 +116,16 @@
         iframe.active {
             display: block;
         }
+        /* 删除重复的CSS定义，只保留一个 */
         .window-controls {
             position: fixed;
             top: 0;
             right: 0;
             display: flex;
-            -webkit-app-region: no-drag;
-            z-index: 1000;
+            z-index: 10000; /* 确保在最高层级 */
+            background-color: transparent; /* 确保背景透明 */
         }
+        
         .window-control {
             width: 46px;
             height: 32px;
@@ -100,13 +134,29 @@
             justify-content: center;
             cursor: pointer;
             color: #666;
+            user-select: none;
+            -webkit-user-select: none;
+            background-color: transparent; /* 确保背景透明 */
+            position: relative; /* 确保定位正确 */
+            z-index: 10001; /* 确保按钮在最高层级 */
         }
+        
         .window-control:hover {
             background-color: rgba(0,0,0,0.1);
         }
+        
         .window-control.close:hover {
             background-color: #e81123;
             color: white;
+        }
+        
+        /* 添加拖动区域 */
+        .tabs {
+            display: flex;
+            background-color: #f0f0f0;
+            padding: 8px 8px 0;
+            padding-right: 150px; /* 为窗口控制按钮留出空间 */
+            border-bottom: 1px solid #ccc;
         }
     </style>
 </head>
@@ -146,7 +196,17 @@
     </div>
 
     <script>
-        const { remote } = require('@electron/remote');
+        // 使用更安全的方式获取remote对象
+        let remote = null;
+        try {
+            remote = require('@electron/remote');
+            console.log('Remote模块加载成功');
+        } catch (error) {
+            console.error('加载Remote模块失败:', error);
+        }
+        
+        // 添加一个变量来跟踪窗口状态，避免竞争条件
+        let isMaximized = false;
         
         function switchTab(tabName) {
             // 更新标签样式
@@ -162,23 +222,126 @@
             document.getElementById(tabName + '-frame').classList.add('active');
         }
 
+        // 修改JavaScript函数，添加错误处理和日志
         function minimizeWindow() {
-            remote.getCurrentWindow().minimize();
-        }
-
-        function maximizeWindow() {
-            const win = remote.getCurrentWindow();
-            if (win.isMaximized()) {
-                win.unmaximize();
-            } else {
-                win.maximize();
+            try {
+                console.log('最小化窗口');
+                if (remote && remote.getCurrentWindow) {
+                    remote.getCurrentWindow().minimize();
+                } else {
+                    console.error('Remote模块不可用，无法最小化窗口');
+                }
+            } catch (error) {
+                console.error('最小化窗口时出错:', error);
             }
         }
-
-        function closeWindow() {
-            const win = remote.getCurrentWindow();
-            win.close();
+        
+        function maximizeWindow() {
+            try {
+                console.log('最大化/还原窗口，当前状态:', isMaximized);
+                if (remote && remote.getCurrentWindow) {
+                    const win = remote.getCurrentWindow();
+                    
+                    // 使用本地状态变量而不是win.isMaximized()，避免竞争条件
+                    if (isMaximized) {
+                        console.log('执行窗口还原');
+                        win.unmaximize();
+                        isMaximized = false;
+                        // 更新按钮图标
+                        document.querySelector('.window-control.maximize').innerHTML = '□';
+                    } else {
+                        console.log('执行窗口最大化');
+                        win.maximize();
+                        isMaximized = true;
+                        // 更新按钮图标
+                        document.querySelector('.window-control.maximize').innerHTML = '❐';
+                    }
+                } else {
+                    console.error('Remote模块不可用，无法最大化/还原窗口');
+                }
+            } catch (error) {
+                console.error('最大化/还原窗口时出错:', error);
+            }
         }
+        
+        function closeWindow() {
+            try {
+                console.log('关闭窗口');
+                // 尝试多种关闭方法
+                if (window.electronAPI && window.electronAPI.closeApp) {
+                    console.log('使用electronAPI关闭应用');
+                    window.electronAPI.closeApp();
+                } else if (remote && remote.getCurrentWindow) {
+                    console.log('使用remote模块关闭窗口');
+                    remote.getCurrentWindow().close();
+                } else {
+                    console.error('无法找到关闭窗口的方法');
+                }
+            } catch (error) {
+                console.error('关闭窗口时出错:', error);
+            }
+        }
+        
+        // 添加事件监听器，确保窗口控制按钮能接收到点击事件
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM加载完成，初始化窗口控制按钮');
+            
+            // 移除onclick属性，避免事件重复触发
+            const minimizeBtn = document.querySelector('.window-control.minimize');
+            if (minimizeBtn) {
+                minimizeBtn.removeAttribute('onclick');
+                minimizeBtn.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    minimizeWindow();
+                });
+            }
+            
+            const maximizeBtn = document.querySelector('.window-control.maximize');
+            if (maximizeBtn) {
+                maximizeBtn.removeAttribute('onclick');
+                maximizeBtn.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    maximizeWindow();
+                });
+            }
+            
+            const closeBtn = document.querySelector('.window-control.close');
+            if (closeBtn) {
+                closeBtn.removeAttribute('onclick');
+                closeBtn.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    closeWindow();
+                });
+            }
+            
+            // 监听窗口最大化状态变化，更新本地状态变量和按钮图标
+            if (remote && remote.getCurrentWindow) {
+                try {
+                    const win = remote.getCurrentWindow();
+                    
+                    // 初始化窗口状态
+                    isMaximized = win.isMaximized();
+                    document.querySelector('.window-control.maximize').innerHTML = isMaximized ? '❐' : '□';
+                    
+                    win.on('maximize', () => {
+                        console.log('窗口最大化事件触发');
+                        isMaximized = true;
+                        document.querySelector('.window-control.maximize').innerHTML = '❐';
+                    });
+                    
+                    win.on('unmaximize', () => {
+                        console.log('窗口还原事件触发');
+                        isMaximized = false;
+                        document.querySelector('.window-control.maximize').innerHTML = '□';
+                    });
+                } catch (error) {
+                    console.error('设置窗口状态监听器失败:', error);
+                }
+            }
+        });
 
         function refreshTab(tabName, event) {
             event.stopPropagation(); // 阻止事件冒泡，避免触发标签切换

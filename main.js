@@ -1,3 +1,4 @@
+// 添加必要的模块导入
 const { app, BrowserWindow, ipcMain } = require('electron')
 const path = require('path')
 const fs = require('fs')
@@ -13,20 +14,18 @@ function createWindow () {
       nodeIntegration: true,
       contextIsolation: false,
       enableRemoteModule: true,
-      preload: path.join(__dirname, 'preload.js') // 添加preload配置
+      preload: path.join(__dirname, 'preload.js')
     }
   })
 
   require('@electron/remote/main').enable(win.webContents)
   win.loadFile('app.html')
-  // 开发时可以打开开发者工具
-  // win.webContents.openDevTools()
+  // win.webContents.openDevTools();
 
-  // 添加窗口关闭事件处理
-  win.on('closed', () => {
+  // 添加IPC处理器来关闭应用
+  ipcMain.on('close-app', () => {
     app.quit()
   })
-  win.webContents.openDevTools();
 }
 
 // 添加IPC处理器来读取Excel文件
