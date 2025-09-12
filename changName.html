@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片批量重命名</title>
+    <!-- 引入 JSZip 库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .input-section {
+            margin-bottom: 20px;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 10px 0;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .upload-section {
+            margin-top: 20px;
+            padding: 20px;
+            border: 2px dashed #ccc;
+            text-align: center;
+            border-radius: 4px;
+        }
+        .upload-section.dragover {
+            border-color: #4CAF50;
+            background-color: #f0f8f0;
+        }
+        .image-list {
+            margin-top: 20px;
+        }
+        .image-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .image-item img {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+            margin-right: 10px;
+        }
+        .image-info {
+            flex: 1;
+        }
+        .image-name {
+            font-weight: bold;
+        }
+        .new-name {
+            color: #4CAF50;
+            margin-top: 5px;
+        }
+        .progress-container {
+            margin-top: 20px;
+            display: none;
+        }
+        .progress-bar {
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress {
+            height: 100%;
+            background-color: #4CAF50;
+            width: 0%;
+            transition: width 0.3s;
+        }
+        .progress-text {
+            margin-top: 5px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>图片批量重命名</h1>
+        <button id="export-btn" disabled>导出重命名后的图片</button>
+        <div class="input-section">
+            <div class="input-group">
+                <label for="name-suffix">重命名后缀：</label>
+                <input type="text" id="name-suffix" placeholder="请输入要添加到图片名称后的文本">
+            </div>
+        </div>
+        
+        <div class="upload-section" id="upload-area">
+            <p>拖放图片文件夹到此处，或</p>
+            <label for="image-upload">
+                <span style="text-decoration: underline; cursor: pointer;">选择图片文件夹</span>
+            </label>
+            <input type="file" id="image-upload" style="display: none;" webkitdirectory directory mozdirectory multiple>
+        </div>
+        
+        <div class="image-list" id="image-list">
+            <h3>图片列表：</h3>
+            <div id="image-container"></div>
+        </div>
+        
+        
+        
+        <div class="progress-container" id="progress-container">
+            <div class="progress-bar">
+                <div class="progress" id="progress"></div>
+            </div>
+            <div class="progress-text" id="progress-text">0%</div>
+        </div>
+    </div>
+
+    <script>
+        // 图片文件数组
+        let imageFiles = [];
+        
+        // 初始化上传区域事件监听
+        document.addEventListener('DOMContentLoaded', function() {
+            const uploadArea = document.getElementById('upload-area');
+            const imageUpload = document.getElementById('image-upload');
+            const exportBtn = document.getElementById('export-btn');
+            
+            // 拖放事件
+            uploadArea.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+            
+            uploadArea.addEventListener('dragleave', function() {
+                uploadArea.classList.remove('dragover');
+            });
+            
+            uploadArea.addEventListener('drop', function(e) {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                
+                if (e.dataTransfer.files.length > 0) {
+                    handleFiles(e.dataTransfer.files);
+                }
+            });
+            
+            // 文件选择事件
+            imageUpload.addEventListener('change', function() {
+                if (this.files.length > 0) {
+                    handleFiles(this.files);
+                }
+            });
+            
+            // 导出按钮点击事件
+            exportBtn.addEventListener('click', exportImages);
+        });
+        
+        // 处理上传的文件
+        function handleFiles(files) {
+            imageFiles = []; // 清空之前的图片文件
+            
+            // 过滤出图片文件
+            const imageFileList = Array.from(files).filter(file => file.type.startsWith('image/'));
+            
+            if (imageFileList.length === 0) {
+                alert('未找到图片文件，请选择包含图片的文件夹');
+                return;
+            }
+            
+            // 获取图片文件
+            imageFiles = imageFileList;
+            
+            // 更新图片列表显示
+            updateImageList();
+            
+            // 启用导出按钮
+            document.getElementById('export-btn').disabled = false;
+        }
+        
+        // 更新图片列表显示
+        function updateImageList() {
+            const container = document.getElementById('image-container');
+            container.innerHTML = '';
+            
+            if (imageFiles.length === 0) {
+                container.innerHTML = '<p>暂无图片</p>';
+                return;
+            }
+            
+            imageFiles.forEach(file => {
+                const item = document.createElement('div');
+                item.className = 'image-item';
+                
+                // 创建图片预览
+                const img = document.createElement('img');
+                img.src = URL.createObjectURL(file);
+                
+                // 创建图片信息
+                const info = document.createElement('div');
+                info.className = 'image-info';
+                
+                // 原始名称
+                const originalName = document.createElement('div');
+                originalName.className = 'image-name';
+                originalName.textContent = file.name;
+                
+                // 新名称（暂时为空，等用户输入后缀后再更新）
+                const newName = document.createElement('div');
+                newName.className = 'new-name';
+                newName.textContent = '新名称：等待输入后缀...';
+                
+                info.appendChild(originalName);
+                info.appendChild(newName);
+                
+                item.appendChild(img);
+                item.appendChild(info);
+                
+                container.appendChild(item);
+            });
+            
+            // 监听后缀输入框变化，更新新名称显示
+            document.getElementById('name-suffix').addEventListener('input', updateNewNames);
+        }
+        
+        // 更新新名称显示
+        function updateNewNames() {
+            const suffix = document.getElementById('name-suffix').value;
+            const newNames = document.querySelectorAll('.new-name');
+            
+            imageFiles.forEach((file, index) => {
+                if (newNames[index]) {
+                    const fileName = file.name;
+                    const fileExtension = fileName.substring(fileName.lastIndexOf('.'));
+                    const fileNameWithoutExtension = fileName.substring(0, fileName.lastIndexOf('.'));
+                    
+                    const newName = suffix ? 
+                        `${fileNameWithoutExtension}${suffix}${fileExtension}` : 
+                        fileName;
+                    
+                    newNames[index].textContent = `新名称：${newName}`;
+                }
+            });
+        }
+        
+        // 导出重命名后的图片
+        async function exportImages() {
+            const suffix = document.getElementById('name-suffix').value;
+            
+            if (!suffix) {
+                alert('请输入重命名后缀');
+                return;
+            }
+            
+            if (imageFiles.length === 0) {
+                alert('请先选择图片文件夹');
+                return;
+            }
+            
+            // 显示进度条
+            const progressContainer = document.getElementById('progress-container');
+            const progressBar = document.getElementById('progress');
+            const progressText = document.getElementById('progress-text');
+            progressContainer.style.display = 'block';
+            
+            // 禁用导出按钮
+            document.getElementById('export-btn').disabled = true;
+            
+            // 创建一个ZIP文件 - 使用全局JSZip对象
+            const zip = new JSZip();
+            
+            // 处理每张图片
+            for (let i = 0; i < imageFiles.length; i++) {
+                const file = imageFiles[i];
+                const fileName = file.name;
+                const fileExtension = fileName.substring(fileName.lastIndexOf('.'));
+                const fileNameWithoutExtension = fileName.substring(0, fileName.lastIndexOf('.'));
+                
+                // 新文件名
+                const newFileName = `${fileNameWithoutExtension}${suffix}${fileExtension}`;
+                
+                // 读取文件内容
+                const arrayBuffer = await file.arrayBuffer();
+                
+                // 添加到ZIP文件
+                zip.file(newFileName, arrayBuffer);
+                
+                // 更新进度
+                const progress = Math.round((i + 1) / imageFiles.length * 100);
+                progressBar.style.width = `${progress}%`;
+                progressText.textContent = `${progress}%`;
+                
+                // 添加延迟，让进度条动画可见
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            // 生成ZIP文件并下载
+            zip.generateAsync({ type: 'blob' }).then(function(content) {
+                // 创建下载链接
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(content);
+                link.download = `重命名后的图片_${new Date().getTime()}.zip`;
+                link.click();
+                
+                // 重置进度条
+                setTimeout(() => {
+                    progressContainer.style.display = 'none';
+                    progressBar.style.width = '0%';
+                    progressText.textContent = '0%';
+                    document.getElementById('export-btn').disabled = false;
+                }, 1000);
+            });
+        }
+    </script>
+</body>
+</html>
