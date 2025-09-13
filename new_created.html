@@ -304,24 +304,39 @@
                 // 转换为JSON以便操作
                 let jsonData = XLSX.utils.sheet_to_json(originalWorksheet);
                 
-                // 修正的列位置设置 - 根据实际Excel模板重新分析
-                // A=条形码, B=商品名称, C=规格名称, D=价格, E=库存, 
-                // F=生产日期, G=到期日期, H=是否临期, I=商品三级类目名称, J=商品品牌, 
-                // K=产地(第11列), L=重量(第12列), M=重量单位(第13列)
+                // 根据用户提供的列标题重新设置列位置
+                // A=商品条形码(upc/ean等), B=商品名称, C=规格名称, D=价格（元）, E=库存, 
+                // F=生产日期, G=到期日期, H=是否临期, I=商品三级类目名称*, J=商品品牌, 
+                // K=产地, L=重量, M=重量单位, N=店内码/货号, O=店内分类, P=货架码/位置码, 
+                // Q=起购数, R=售卖状态, S=商品卖点, T=卖点展示期, U=文字详情, V=可售时间, 
+                // W=预售的可配送时间, X=商品属性, Y=无理由退货, Z=app_food_code
                 const columnPositions = {
-                    barcode: 0,      // A列 - 商品条形码
-                    productName: 1, // B列 - 商品名称
-                    specName: 2,    // C列 - 规格名称
-                    price: 3,       // D列 - 价格（元）
-                    stock: 4,       // E列 - 库存
+                    barcode: 0,        // A列 - 商品条形码(upc/ean等)
+                    productName: 1,    // B列 - 商品名称
+                    specName: 2,       // C列 - 规格名称
+                    price: 3,          // D列 - 价格（元）
+                    stock: 4,          // E列 - 库存
                     productionDate: 5, // F列 - 生产日期
-                    expiryDate: 6,  // G列 - 到期日期
-                    isNearExpiry: 7, // H列 - 是否临期
-                    category: 8,    // I列 - 商品三级类目名称
-                    brand: 9,       // J列 - 商品品牌
-                    origin: 10,     // K列 - 产地（第11列）
-                    weight: 11,     // L列 - 重量（第12列）
-                    unit: 12        // M列 - 重量单位（第13列）
+                    expiryDate: 6,     // G列 - 到期日期
+                    isNearExpiry: 7,   // H列 - 是否临期
+                    category: 8,       // I列 - 商品三级类目名称*
+                    brand: 9,          // J列 - 商品品牌
+                    origin: 10,        // K列 - 产地
+                    weight: 11,        // L列 - 重量
+                    unit: 12,          // M列 - 重量单位
+                    storeCode: 13,     // N列 - 店内码/货号
+                    storeCategory: 14, // O列 - 店内分类
+                    shelfCode: 15,     // P列 - 货架码/位置码
+                    minPurchase: 16,   // Q列 - 起购数
+                    status: 17,        // R列 - 售卖状态
+                    sellingPoint: 18,  // S列 - 商品卖点
+                    displayPeriod: 19, // T列 - 卖点展示期
+                    description: 20,   // U列 - 文字详情
+                    saleTime: 21,      // V列 - 可售时间
+                    deliveryTime: 22,  // W列 - 预售的可配送时间
+                    attributes: 23,    // X列 - 商品属性
+                    returnPolicy: 24,  // Y列 - 无理由退货
+                    appFoodCode: 25    // Z列 - app_food_code
                 };
                 
                 // 从第8行开始添加（行索引从0开始，所以是7）
@@ -337,9 +352,10 @@
                     
                     // 使用修正的列位置设置各列的值
                     
-                    // 条形码 (A列)
+                    // 商品条形码 (A列)
                     const barcodeCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.barcode});
                     newWorksheet[barcodeCell] = { t: 's', v: '无条形码' };
+                    
                     // 商品名称 (B列)
                     const productNameCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.productName});
                     newWorksheet[productNameCell] = { t: 's', v: nameWithoutExtension };
@@ -376,37 +392,82 @@
                     const brandCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.brand});
                     newWorksheet[brandCell] = { t: 's', v: '' };
                     
-                    // 产地 (K列 - 第11列) - 修复：设置产地而不是重量
+                    // 产地 (K列)
                     const originCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.origin});
                     newWorksheet[originCell] = { t: 's', v: '' };
                     
-                    // 重量 (L列 - 第12列) - 修复：正确设置重量到第12列
+                    // 重量 (L列)
                     const weightCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.weight});
                     newWorksheet[weightCell] = { t: 'n', v: 500, w: '500' };
                     
-                    // 重量单位 (M列 - 第13列) - 修复：正确设置重量单位到第13列
+                    // 重量单位 (M列)
                     const unitCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.unit});
                     newWorksheet[unitCell] = { t: 's', v: 'g', w: 'g' };
+                    
+                    // 店内码/货号 (N列)
+                    const storeCodeCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.storeCode});
+                    newWorksheet[storeCodeCell] = { t: 's', v: '' };
+                    
+                    // 店内分类 (O列)
+                    const storeCategoryCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.storeCategory});
+                    newWorksheet[storeCategoryCell] = { t: 's', v: '' };
+                    
+                    // 货架码/位置码 (P列)
+                    const shelfCodeCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.shelfCode});
+                    newWorksheet[shelfCodeCell] = { t: 's', v: '' };
+                    
+                    // 起购数 (Q列)
+                    const minPurchaseCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.minPurchase});
+                    newWorksheet[minPurchaseCell] = { t: 's', v: '' };
+                    
+                    // 售卖状态 (R列) - 设置为1
+                    const statusCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.status});
+                    newWorksheet[statusCell] = { t: 'n', v: 1 };
+                    
+                    // 商品卖点 (S列)
+                    const sellingPointCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.sellingPoint});
+                    newWorksheet[sellingPointCell] = { t: 's', v: '' };
+                    
+                    // 卖点展示期 (T列)
+                    const displayPeriodCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.displayPeriod});
+                    newWorksheet[displayPeriodCell] = { t: 's', v: '' };
+                    
+                    // 文字详情 (U列)
+                    const descriptionCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.description});
+                    newWorksheet[descriptionCell] = { t: 's', v: '' };
+                    
+                    // 可售时间 (V列)
+                    const saleTimeCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.saleTime});
+                    newWorksheet[saleTimeCell] = { t: 's', v: '' };
+                    
+                    // 预售的可配送时间 (W列)
+                    const deliveryTimeCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.deliveryTime});
+                    newWorksheet[deliveryTimeCell] = { t: 's', v: '' };
+                    
+                    // 商品属性 (X列)
+                    const attributesCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.attributes});
+                    newWorksheet[attributesCell] = { t: 's', v: '' };
+                    
+                    // 无理由退货 (Y列)
+                    const returnPolicyCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.returnPolicy});
+                    newWorksheet[returnPolicyCell] = { t: 's', v: '' };
+                    
+                    // app_food_code (Z列)
+                    const appFoodCodeCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.appFoodCode});
+                    newWorksheet[appFoodCodeCell] = { t: 's', v: '' };
                 });
                 
                 // 更新工作表范围以包含新添加的行
                 const originalRange = XLSX.utils.decode_range(newWorksheet['!ref'] || 'A1:A1');
                 const lastDataRow = startRow + imageNames.length;
                 
-                // 确保新范围包含所有新添加的数据，扩展到M列(第12列索引)
+                // 确保新范围包含所有新添加的数据，扩展到Z列(第25列索引)
                 const newRange = {
                     s: { r: 0, c: 0 }, // 起始行列
-                    e: { r: Math.max(originalRange.e.r, lastDataRow), c: Math.max(originalRange.e.c, 12) } // 结束行列，确保包含到M列
+                    e: { r: Math.max(originalRange.e.r, lastDataRow), c: Math.max(originalRange.e.c, 25) } // 结束行列，确保包含到Z列
                 };
                 
                 newWorksheet['!ref'] = XLSX.utils.encode_range(newRange);
-                
-                // 最终验证 - 检查重量和重量单位列
-                for (let i = 0; i < Math.min(imageNames.length, 3); i++) {
-                    const checkRow = startRow + i + 1;
-                    const weightCell = XLSX.utils.encode_cell({r: checkRow - 1, c: columnPositions.weight});
-                    const unitCell = XLSX.utils.encode_cell({r: checkRow - 1, c: columnPositions.unit});
-                }
                 
                 // 将工作表添加到工作簿
                 XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, currentSheetName);
@@ -414,7 +475,6 @@
                 // 导出Excel文件
                 const fileName = '美团批量新建_' + new Date().getTime() + '.xlsx';
                 XLSX.writeFile(newWorkbook, fileName);
-                
                 
             } catch (error) {
                 console.error('导出Excel文件失败:', error);
