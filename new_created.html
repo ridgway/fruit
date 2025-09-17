@@ -76,6 +76,25 @@
             border-color: #4CAF50;
             background-color: #f0f8f0;
         }
+        .input-section {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .input-section label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .input-section input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
     </style>
 </head>
 <body>
@@ -97,6 +116,12 @@
                 <span style="text-decoration: underline; cursor: pointer;">选择图片文件夹</span>
             </label>
             <input type="file" id="image-upload" style="display: none;" webkitdirectory directory mozdirectory multiple>
+        </div>
+
+        <!-- 店铺分类输入区域 -->
+        <div class="input-section">
+            <label for="store-category-input">店铺分类（可选）：</label>
+            <input type="text" id="store-category-input" placeholder="如果填写，将在店铺分类列添加输入文本，否则留空">
         </div>
 
         <!-- 图片名称显示区域 -->
@@ -339,6 +364,10 @@
                     appFoodCode: 25    // Z列 - app_food_code
                 };
                 
+                // 获取店铺分类输入框的值
+                const storeCategoryInput = document.getElementById('store-category-input');
+                const storeCategoryValue = storeCategoryInput ? storeCategoryInput.value.trim() : '';
+                
                 // 从第8行开始添加（行索引从0开始，所以是7）
                 let startRow = 7;
                 
@@ -408,9 +437,9 @@
                     const storeCodeCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.storeCode});
                     newWorksheet[storeCodeCell] = { t: 's', v: '' };
                     
-                    // 店内分类 (O列)
+                    // 店内分类 (O列) - 使用输入框的值
                     const storeCategoryCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.storeCategory});
-                    newWorksheet[storeCategoryCell] = { t: 's', v: '' };
+                    newWorksheet[storeCategoryCell] = { t: 's', v: storeCategoryValue };
                     
                     // 货架码/位置码 (P列)
                     const shelfCodeCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.shelfCode});

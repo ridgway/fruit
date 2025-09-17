@@ -140,8 +140,13 @@
             </div>
             <!-- 添加图片重命名标签页 -->
             <div class="tab" onclick="switchTab('changName')">
-                <span class="tab-title">图片重命名</span>
+                <span class="tab-title">上传修改图片名称</span>
                 <div class="refresh-btn" onclick="refreshTab('changName', event)">↻</div>
+            </div>
+            <!-- 添加图片名称添加标签页 -->
+            <div class="tab" onclick="switchTab('addName')">
+                <span class="tab-title">图片前后修改名称/价格</span>
+                <div class="refresh-btn" onclick="refreshTab('addName', event)">↻</div>
             </div>
         </div>
         <div class="content">
@@ -154,6 +159,8 @@
             <iframe id="ele-frame" src="ele_created.html"></iframe>
             <!-- 添加图片重命名iframe -->
             <iframe id="changName-frame" src="changName.html"></iframe>
+            <!-- 添加图片名称添加iframe -->
+            <iframe id="addName-frame" src="addName.html"></iframe>
         </div>
     </div>
 

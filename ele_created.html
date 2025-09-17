@@ -76,6 +76,25 @@
             border-color: #4CAF50;
             background-color: #f0f8f0;
         }
+        .input-section {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .input-section label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .input-section input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
     </style>
 </head>
 <body>
@@ -88,6 +107,12 @@
             <button onclick="readExcelFile()" style="display: none;">读取Excel文件</button>
             <!-- 添加导出Excel按钮 -->
             <button onclick="exportExcelWithImages()">导出包含图片名称的Excel</button>
+        </div>
+        
+        <!-- 店铺分类名称输入框 -->
+        <div class="input-section">
+            <label for="store-category-input">店铺分类名称：</label>
+            <input type="text" id="store-category-input" placeholder="请输入店铺分类名称（可选）">
         </div>
         
         <!-- 图片上传区域 -->
@@ -290,6 +315,10 @@
                 return;
             }
             
+            // 获取店铺分类名称输入框的值
+            const storeCategoryInput = document.getElementById('store-category-input');
+            const storeCategoryValue = storeCategoryInput ? storeCategoryInput.value.trim() : '';
+            
             try {
                 // 创建新的工作簿
                 const newWorkbook = XLSX.utils.book_new();
@@ -399,9 +428,9 @@
                     const statusCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.status});
                     newWorksheet[statusCell] = { t: 's', v: '下架' };
                     
-                    // 店铺分类名称 (N列)
+                    // 店铺分类名称 (N列) - 使用输入框的值
                     const shopCategoryCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.shopCategory});
-                    newWorksheet[shopCategoryCell] = { t: 's', v: '' };
+                    newWorksheet[shopCategoryCell] = { t: 's', v: storeCategoryValue };
                     
                     // 商品自定义ID (O列)
                     const customIdCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.customId});

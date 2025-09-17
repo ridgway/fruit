@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片名称修改工具</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .input-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .input-section label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .input-section input {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 10px 5px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .upload-section {
+            margin-top: 20px;
+            padding: 20px;
+            border: 2px dashed #ccc;
+            text-align: center;
+            border-radius: 4px;
+        }
+        .upload-section.dragover {
+            border-color: #4CAF50;
+            background-color: #f0f8f0;
+        }
+        .image-names {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .preview-section {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .preview-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .preview-table th, .preview-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .preview-table th {
+            background-color: #f2f2f2;
+        }
+        .status-message {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>图片名称修改工具</h1>
+        
+        <!-- 前缀和后缀输入区域 -->
+        <div class="input-section">
+            <label for="prefix-input">添加前缀：</label>
+            <input type="text" id="prefix-input" placeholder="请输入要添加到图片名称前面的内容（可选）">
+            
+            <label for="suffix-input">添加后缀：</label>
+            <input type="text" id="suffix-input" placeholder="请输入要添加到图片名称后面的内容（可选）">
+        </div>
+        
+        <!-- 图片上传区域 -->
+        <div id="upload-area" class="upload-section">
+            <p>拖放图片文件夹到此处，或</p>
+            <label for="image-upload">
+                <span style="text-decoration: underline; cursor: pointer;">选择图片文件夹</span>
+            </label>
+            <input type="file" id="image-upload" style="display: none;" webkitdirectory directory mozdirectory multiple>
+        </div>
+        
+        <!-- 状态消息 -->
+        <div id="status-message" class="status-message"></div>
+        
+        <!-- 原始图片名称显示区域 -->
+        <div class="image-names">
+            <h3>原始图片名称列表：</h3>
+            <div id="image-names-list"></div>
+        </div>
+        
+        <!-- 修改后名称预览区域 -->
+        <div class="preview-section">
+            <h3>修改后名称预览：</h3>
+            <div id="preview-container">
+                <p>请先选择图片文件夹</p>
+            </div>
+        </div>
+        
+        <!-- 操作按钮 -->
+        <div style="margin-top: 20px; text-align: center;">
+            <button id="preview-btn" onclick="previewNameChanges()" disabled>预览修改</button>
+            <button id="export-btn" onclick="exportZip()" disabled>导出ZIP文件</button>
+        </div>
+    </div>
+
+    <script>
+        // 存储图片文件对象
+        let imageFiles = [];
+        // 存储修改后的名称
+        let modifiedNames = [];
+        
+        // 初始化上传区域事件监听
+        document.addEventListener('DOMContentLoaded', function() {
+            const uploadArea = document.getElementById('upload-area');
+            const imageUpload = document.getElementById('image-upload');
+            const prefixInput = document.getElementById('prefix-input');
+            const suffixInput = document.getElementById('suffix-input');
+            
+            // 拖放事件
+            uploadArea.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+            
+            uploadArea.addEventListener('dragleave', function() {
+                uploadArea.classList.remove('dragover');
+            });
+            
+            uploadArea.addEventListener('drop', function(e) {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                
+                if (e.dataTransfer.files.length > 0) {
+                    handleFiles(e.dataTransfer.files);
+                }
+            });
+            
+            // 文件选择事件
+            imageUpload.addEventListener('change', function() {
+                if (this.files.length > 0) {
+                    handleFiles(this.files);
+                }
+            });
+            
+            // 输入框变化事件
+            prefixInput.addEventListener('input', function() {
+                if (imageFiles.length > 0) {
+                    document.getElementById('preview-btn').disabled = false;
+                }
+            });
+            
+            suffixInput.addEventListener('input', function() {
+                if (imageFiles.length > 0) {
+                    document.getElementById('preview-btn').disabled = false;
+                }
+            });
+        });
+        
+        // 处理上传的文件
+        function handleFiles(files) {
+            // 过滤出图片文件
+            imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+            
+            if (imageFiles.length === 0) {
+                showStatus('未找到图片文件，请选择包含图片的文件夹', 'error');
+                return;
+            }
+            
+            // 更新图片名称列表显示
+            updateImageNamesList();
+            
+            // 启用预览按钮
+            document.getElementById('preview-btn').disabled = false;
+            
+            showStatus(`成功加载 ${imageFiles.length} 个图片文件`, 'success');
+        }
+        
+        // 更新图片名称列表显示
+        function updateImageNamesList() {
+            const listContainer = document.getElementById('image-names-list');
+            listContainer.innerHTML = '';
+            
+            if (imageFiles.length === 0) {
+                listContainer.innerHTML = '<p>暂无图片名称</p>';
+                return;
+            }
+            
+            const ul = document.createElement('ul');
+            imageFiles.forEach(file => {
+                const li = document.createElement('li');
+                li.textContent = file.name;
+                ul.appendChild(li);
+            });
+            listContainer.appendChild(ul);
+        }
+        
+        // 预览名称修改
+        function previewNameChanges() {
+            const prefixInput = document.getElementById('prefix-input');
+            const suffixInput = document.getElementById('suffix-input');
+            const prefix = prefixInput.value.trim();
+            const suffix = suffixInput.value.trim();
+            
+            modifiedNames = [];
+            
+            // 创建预览表格
+            const previewContainer = document.getElementById('preview-container');
+            previewContainer.innerHTML = '';
+            
+            const table = document.createElement('table');
+            table.className = 'preview-table';
+            
+            // 创建表头
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            
+            const th1 = document.createElement('th');
+            th1.textContent = '原始名称';
+            headerRow.appendChild(th1);
+            
+            const th2 = document.createElement('th');
+            th2.textContent = '修改后名称';
+            headerRow.appendChild(th2);
+            
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+            
+            // 创建表格内容
+            const tbody = document.createElement('tbody');
+            imageFiles.forEach(file => {
+                const tr = document.createElement('tr');
+                
+                // 原始名称
+                const td1 = document.createElement('td');
+                td1.textContent = file.name;
+                tr.appendChild(td1);
+                
+                // 修改后名称
+                const td2 = document.createElement('td');
+                const fileName = file.name;
+                const fileExtension = fileName.includes('.') ? fileName.substring(fileName.lastIndexOf('.')) : '';
+                const nameWithoutExtension = fileName.includes('.') ? fileName.substring(0, fileName.lastIndexOf('.')) : fileName;
+                
+                const modifiedName = prefix + nameWithoutExtension + suffix + fileExtension;
+                modifiedNames.push({
+                    originalFile: file,
+                    newName: modifiedName
+                });
+                
+                td2.textContent = modifiedName;
+                tr.appendChild(td2);
+                
+                tbody.appendChild(tr);
+            });
+            
+            table.appendChild(tbody);
+            previewContainer.appendChild(table);
+            
+            // 启用导出按钮
+            document.getElementById('export-btn').disabled = false;
+            
+            showStatus('预览生成成功，可以导出ZIP文件', 'success');
+        }
+        
+        // 导出ZIP文件
+        async function exportZip() {
+            if (modifiedNames.length === 0) {
+                showStatus('请先预览修改后的名称', 'error');
+                return;
+            }
+            
+            try {
+                showStatus('正在创建ZIP文件，请稍候...', 'info');
+                
+                // 创建一个新的JSZip实例
+                const zip = new JSZip();
+                
+                // 添加所有文件到ZIP
+                for (const item of modifiedNames) {
+                    // 读取文件内容
+                    const fileContent = await readFileAsArrayBuffer(item.originalFile);
+                    // 添加到ZIP，使用修改后的名称
+                    zip.file(item.newName, fileContent);
+                }
+                
+                // 生成ZIP文件
+                const content = await zip.generateAsync({ type: 'blob' });
+                
+                // 保存ZIP文件
+                const fileName = '修改后的图片_' + new Date().getTime() + '.zip';
+                saveAs(content, fileName);
+                
+                showStatus('ZIP文件导出成功！', 'success');
+            } catch (error) {
+                console.error('导出ZIP文件失败:', error);
+                showStatus('导出ZIP文件失败，请查看控制台获取详细信息', 'error');
+            }
+        }
+        
+        // 将文件读取为ArrayBuffer
+        function readFileAsArrayBuffer(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                
+                reader.onload = function(event) {
+                    resolve(event.target.result);
+                };
+                
+                reader.onerror = function(error) {
+                    reject(error);
+                };
+                
+                reader.readAsArrayBuffer(file);
+            });
+        }
+        
+        // 显示状态消息
+        function showStatus(message, type) {
+            const statusElement = document.getElementById('status-message');
+            statusElement.textContent = message;
+            statusElement.className = 'status-message ' + type;
+            statusElement.style.display = 'block';
+            
+            // 3秒后自动隐藏消息
+            setTimeout(() => {
+                statusElement.style.display = 'none';
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
