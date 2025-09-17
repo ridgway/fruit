@@ -5,8 +5,10 @@ const fs = require('fs')
 const XLSX = require('xlsx')
 require('@electron/remote/main').initialize()
 
+let mainWindow
+
 function createWindow () {
-  const win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     frame: false,
@@ -18,13 +20,34 @@ function createWindow () {
     }
   })
 
-  require('@electron/remote/main').enable(win.webContents)
-  win.loadFile('app.html')
-  // win.webContents.openDevTools();
+  require('@electron/remote/main').enable(mainWindow.webContents)
+  mainWindow.loadFile('app.html')
+  // mainWindow.webContents.openDevTools();
 
   // 添加IPC处理器来关闭应用
   ipcMain.on('close-app', () => {
+    console.log('收到关闭应用请求')
     app.quit()
+  })
+  
+  // 添加IPC处理器来最小化窗口
+  ipcMain.on('minimize-window', () => {
+    console.log('收到最小化窗口请求')
+    if (mainWindow) {
+      mainWindow.minimize()
+    }
+  })
+  
+  // 添加IPC处理器来最大化/还原窗口
+  ipcMain.on('maximize-window', () => {
+    console.log('收到最大化/还原窗口请求')
+    if (mainWindow) {
+      if (mainWindow.isMaximized()) {
+        mainWindow.unmaximize()
+      } else {
+        mainWindow.maximize()
+      }
+    }
   })
 }
 
