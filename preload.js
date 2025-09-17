@@ -3,5 +3,7 @@ const { ipcRenderer } = require('electron')
 
 window.electronAPI = {
   readExcelFile: () => ipcRenderer.invoke('read-excel-file'),
-  closeApp: () => ipcRenderer.send('close-app')
+  closeApp: () => ipcRenderer.send('close-app'),
+  minimizeWindow: () => ipcRenderer.send('minimize-window'),
+  maximizeWindow: () => ipcRenderer.send('maximize-window')
 }
