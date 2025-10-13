@@ -5,10 +5,27 @@ const fs = require('fs')
 const XLSX = require('xlsx')
 require('@electron/remote/main').initialize()
 
+// 配置自定义缓存路径以避免权限问题
+const cacheDir = path.join(process.cwd(), '.electron-cache')
+// 确保缓存目录存在
+if (!fs.existsSync(cacheDir)) {
+  try {
+    fs.mkdirSync(cacheDir, { recursive: true })
+    console.log(`创建缓存目录: ${cacheDir}`)
+  } catch (error) {
+    console.error(`创建缓存目录失败: ${error.message}`)
+  }
+}
+
+// 设置Electron缓存路径
+app.commandLine.appendSwitch('disk-cache-dir', cacheDir)
+app.commandLine.appendSwitch('disable-gpu-program-cache')
+
 let mainWindow
 
 function createWindow () {
-  mainWindow = new BrowserWindow({
+  // 创建窗口时设置图标
+  const windowOptions = {
     width: 1200,
     height: 800,
     frame: false,
@@ -19,7 +36,14 @@ function createWindow () {
       enableRemoteModule: true,
       preload: path.join(__dirname, 'preload.js')
     }
-  })
+  }
+  
+  // 为Windows设置ico图标
+  if (process.platform === 'win32') {
+    windowOptions.icon = path.join(__dirname, 'build', 'icon.ico')
+  }
+  
+  mainWindow = new BrowserWindow(windowOptions)
 
   require('@electron/remote/main').enable(mainWindow.webContents)
   mainWindow.loadFile('app.html')

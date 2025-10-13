@@ -330,38 +330,39 @@
                 let jsonData = XLSX.utils.sheet_to_json(originalWorksheet);
                 
                 // 根据用户提供的列标题重新设置列位置
-                // A=商品条形码(upc/ean等), B=商品名称, C=规格名称, D=价格（元）, E=库存, 
-                // F=生产日期, G=到期日期, H=是否临期, I=商品三级类目名称*, J=商品品牌, 
-                // K=产地, L=重量, M=重量单位, N=店内码/货号, O=店内分类, P=货架码/位置码, 
-                // Q=起购数, R=售卖状态, S=商品卖点, T=卖点展示期, U=文字详情, V=可售时间, 
-                // W=预售的可配送时间, X=商品属性, Y=无理由退货, Z=app_food_code
+                // A=商品条形码(upc/ean等), B=商品名称, C=选择销售属性, D=规格名称, E=价格（元）, F=库存, 
+                // G=生产日期, H=到期日期, I=是否临期, J=商品三级类目名称*, K=商品品牌, 
+                // L=产地, M=重量, N=重量单位, O=店内码/货号, P=店内分类, Q=货架码/位置码, 
+                // R=起购数, S=售卖状态, T=商品卖点, U=卖点展示期, V=文字详情, W=可售时间, 
+                // X=预售的可配送时间, Y=商品属性, Z=无理由退货, AA=app_food_code
                 const columnPositions = {
-                    barcode: 0,        // A列 - 商品条形码(upc/ean等)
-                    productName: 1,    // B列 - 商品名称
-                    specName: 2,       // C列 - 规格名称
-                    price: 3,          // D列 - 价格（元）
-                    stock: 4,          // E列 - 库存
-                    productionDate: 5, // F列 - 生产日期
-                    expiryDate: 6,     // G列 - 到期日期
-                    isNearExpiry: 7,   // H列 - 是否临期
-                    category: 8,       // I列 - 商品三级类目名称*
-                    brand: 9,          // J列 - 商品品牌
-                    origin: 10,        // K列 - 产地
-                    weight: 11,        // L列 - 重量
-                    unit: 12,          // M列 - 重量单位
-                    storeCode: 13,     // N列 - 店内码/货号
-                    storeCategory: 14, // O列 - 店内分类
-                    shelfCode: 15,     // P列 - 货架码/位置码
-                    minPurchase: 16,   // Q列 - 起购数
-                    status: 17,        // R列 - 售卖状态
-                    sellingPoint: 18,  // S列 - 商品卖点
-                    displayPeriod: 19, // T列 - 卖点展示期
-                    description: 20,   // U列 - 文字详情
-                    saleTime: 21,      // V列 - 可售时间
-                    deliveryTime: 22,  // W列 - 预售的可配送时间
-                    attributes: 23,    // X列 - 商品属性
-                    returnPolicy: 24,  // Y列 - 无理由退货
-                    appFoodCode: 25    // Z列 - app_food_code
+                    barcode: 0,          // A列 - 商品条形码(upc/ean等)
+                    productName: 1,      // B列 - 商品名称
+                    salesAttribute: 2,   // C列 - 选择销售属性
+                    specName: 3,         // D列 - 规格名称
+                    price: 4,            // E列 - 价格（元）
+                    stock: 5,            // F列 - 库存
+                    productionDate: 6,   // G列 - 生产日期
+                    expiryDate: 7,       // H列 - 到期日期
+                    isNearExpiry: 8,     // I列 - 是否临期
+                    category: 9,         // J列 - 商品三级类目名称*
+                    brand: 10,           // K列 - 商品品牌
+                    origin: 11,          // L列 - 产地
+                    weight: 12,          // M列 - 重量
+                    unit: 13,            // N列 - 重量单位
+                    storeCode: 14,       // O列 - 店内码/货号
+                    storeCategory: 15,   // P列 - 店内分类
+                    shelfCode: 16,       // Q列 - 货架码/位置码
+                    minPurchase: 17,     // R列 - 起购数
+                    status: 18,          // S列 - 售卖状态
+                    sellingPoint: 19,    // T列 - 商品卖点
+                    displayPeriod: 20,   // U列 - 卖点展示期
+                    description: 21,     // V列 - 文字详情
+                    saleTime: 22,        // W列 - 可售时间
+                    deliveryTime: 23,    // X列 - 预售的可配送时间
+                    attributes: 24,      // Y列 - 商品属性
+                    returnPolicy: 25,    // Z列 - 无理由退货
+                    appFoodCode: 26      // AA列 - app_food_code
                 };
                 
                 // 获取店铺分类输入框的值
@@ -389,7 +390,11 @@
                     const productNameCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.productName});
                     newWorksheet[productNameCell] = { t: 's', v: nameWithoutExtension };
                     
-                    // 规格名称 (C列)
+                    // 选择销售属性 (C列)
+                    const salesAttributeCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.salesAttribute});
+                    newWorksheet[salesAttributeCell] = { t: 's', v: '' };
+                    
+                    // 规格名称 (D列)
                     const specNameCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.specName});
                     newWorksheet[specNameCell] = { t: 's', v: '' };
                     

@@ -312,29 +312,81 @@
             processedImages = [];
             let processedCount = 0;
             
-            // 使用固定的默认参数
-            const opacity = 0.8;
+            // 移除透明度设置，确保水印颜色完全保留
+            // const opacity = 0.8; // 删除这行
             
             targetImages.forEach((targetImage, index) => {
                 setTimeout(() => {
                     const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
+                    // 优化Canvas设置，确保最佳图像质量
+                    const ctx = canvas.getContext('2d', {
+                        alpha: true,
+                        willReadFrequently: true,
+                        colorSpace: 'srgb' // 明确指定色彩空间
+                    });
                     
                     canvas.width = targetImage.image.width;
                     canvas.height = targetImage.image.height;
                     
-                    // 绘制原图
+                    // 修复1: 改进背景处理逻辑
+                    // 清空画布
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    // 对于所有图片类型，先绘制白色背景（如果需要）
+                    const imgType = targetImage.file.type;
+                    const hasAlpha = imgType === 'image/png' || imgType === 'image/webp';
+                    
+                    // 检查原图是否有透明区域
+                    let needsWhiteBackground = false;
+                    if (hasAlpha) {
+                        // 先绘制一小部分图像来检测透明度
+                        ctx.drawImage(targetImage.image, 0, 0, 1, 1, 0, 0, 1, 1);
+                        const imageData = ctx.getImageData(0, 0, 1, 1);
+                        needsWhiteBackground = imageData.data[3] < 255;
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    }
+                    
+                    if (needsWhiteBackground) {
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    }
+                    
+                    // 绘制原图（确保高质量）
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high';
                     ctx.drawImage(targetImage.image, 0, 0);
                     
-                    // 水印图片完全覆盖目标图片（两张图叠加）
-                    ctx.globalAlpha = opacity;
-                    ctx.drawImage(watermarkImage, 0, 0, targetImage.image.width, targetImage.image.height);
-                    ctx.globalAlpha = 1;
+                    // 水印图片处理 - 关键修复：使用100%不透明度
+                    // 移除全局透明度设置，确保水印颜色完全显示
+                    // ctx.globalAlpha = opacity; // 删除这行
                     
-                    // 转换为blob
+                    // 确保绘制时保持最佳质量
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high';
+                    ctx.drawImage(watermarkImage, 0, 0, targetImage.image.width, targetImage.image.height);
+                    
+                    // ctx.globalAlpha = 1; // 不再需要这行
+                    
+                    // 转换为blob - 进一步优化格式处理
+                    const fileExtension = targetImage.file.name.split('.').pop().toLowerCase();
+                    let mimeType = 'image/jpeg';
+                    let quality = 0.99; // 尽可能高的质量
+                    
+                    if (fileExtension === 'png') {
+                        mimeType = 'image/png';
+                        quality = 1; // PNG无损
+                    } else if (fileExtension === 'webp') {
+                        mimeType = 'image/webp';
+                        quality = 0.99; // 极高质量WebP
+                    } else if (['jpg', 'jpeg'].includes(fileExtension)) {
+                        mimeType = 'image/jpeg';
+                        quality = 0.99; // 极高质量JPEG
+                    }
+                    
+                    // 添加额外的图像优化
                     canvas.toBlob(function(blob) {
                         processedImages.push({
-                            name: targetImage.file.name,  // 直接使用原文件名，不加前缀
+                            name: targetImage.file.name,  // 直接使用原文件名
                             blob: blob
                         });
                         
@@ -347,7 +399,7 @@
                             // 所有图片处理完成，创建ZIP文件
                             createZipFile();
                         }
-                    }, 'image/jpeg', 0.9);
+                    }, mimeType, quality);
                 }, index * 100); // 延迟处理以避免阻塞
             });
         }

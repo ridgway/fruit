@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>美团分类Excel处理工具</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            background-color: #f9f9f9;
+            cursor: pointer;
+        }
+        .upload-area:hover {
+            border-color: #0078d7;
+            background-color: #f0f7ff;
+        }
+        .upload-area.dragover {
+            border-color: #0078d7;
+            background-color: #e3f2fd;
+        }
+        .upload-icon {
+            font-size: 50px;
+            color: #ccc;
+            margin-bottom: 15px;
+        }
+        .upload-text {
+            color: #666;
+            font-size: 16px;
+        }
+        .file-input {
+            display: none;
+        }
+        .control-panel {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .btn {
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .btn-primary {
+            background-color: #0078d7;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #106ebe;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background-color: #5a6268;
+        }
+        .table-container {
+            max-height: 500px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+        .status-message {
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .status-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .property-value-input {
+            width: 100%;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+        .file-info {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>美团分类Excel处理工具</h1>
+        
+        <div class="status-message" id="statusMessage"></div>
+        
+        <!-- 文件上传区域 -->
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📁</div>
+            <div class="upload-text">点击或拖拽Excel文件到此处上传</div>
+            <input type="file" id="fileInput" class="file-input" accept=".xlsx, .xls">
+        </div>
+        
+        <div id="fileInfo" class="file-info" style="display: none;"></div>
+        
+        <!-- 控制面板 -->
+        <div class="control-panel" id="controlPanel" style="display: none;">
+            <button class="btn btn-secondary" id="clearButton">清除数据</button>
+            <button class="btn btn-primary" id="exportButton">导出Excel文件</button>
+        </div>
+        
+        <!-- 数据表格 -->
+        <div class="table-container" id="tableContainer" style="display: none;">
+            <table id="dataTable"></table>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // DOM元素
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('fileInput');
+            const fileInfo = document.getElementById('fileInfo');
+            const controlPanel = document.getElementById('controlPanel');
+            const tableContainer = document.getElementById('tableContainer');
+            const dataTable = document.getElementById('dataTable');
+            const clearButton = document.getElementById('clearButton');
+            const exportButton = document.getElementById('exportButton');
+            const statusMessage = document.getElementById('statusMessage');
+            
+            // 全局变量
+            let workbook = null;
+            let worksheetData = [];
+            
+            // 固定列头
+            const fixedHeaders = [
+                '商品名称',
+                '商品条形码',
+                '店内码/货号',
+                'app_spu_code',
+                '三级类目名称',
+                '属性名称',
+                '属性值（仅填写此列）',
+                '属性类型',
+                '填写格式',
+                '填写要求',
+                '商品创建时间'
+            ];
+            
+            // 文件上传事件
+            uploadArea.addEventListener('click', () => {
+                fileInput.click();
+            });
+            
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    processFile(e.target.files[0]);
+                }
+            });
+            
+            // 拖拽事件
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+            
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('dragover');
+            });
+            
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                
+                if (e.dataTransfer.files.length > 0) {
+                    processFile(e.dataTransfer.files[0]);
+                }
+            });
+            
+            // 清除按钮事件
+            clearButton.addEventListener('click', () => {
+                clearData();
+            });
+            
+            // 导出按钮事件
+            exportButton.addEventListener('click', () => {
+                exportExcel();
+            });
+            
+            // 处理文件
+            function processFile(file) {
+                if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+                    showStatus('请上传Excel文件(.xlsx或.xls)', 'error');
+                    return;
+                }
+                
+                const reader = new FileReader();
+                
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        workbook = XLSX.read(data, { type: 'array' });
+                        
+                        // 获取第一个工作表
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        
+                        // 转换为JSON数据
+                        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                        
+                        // 处理数据，生成新的工作表数据
+                        processWorksheetData(jsonData);
+                        
+                        // 显示文件信息
+                        fileInfo.textContent = `已加载文件: ${file.name}`;
+                        fileInfo.style.display = 'block';
+                        
+                        // 显示控制面板和表格
+                        controlPanel.style.display = 'flex';
+                        tableContainer.style.display = 'block';
+                        
+                        showStatus('文件加载成功', 'success');
+                    } catch (error) {
+                        showStatus('文件解析失败: ' + error.message, 'error');
+                    }
+                };
+                
+                reader.onerror = () => {
+                    showStatus('文件读取失败', 'error');
+                };
+                
+                reader.readAsArrayBuffer(file);
+            }
+            
+            // 处理工作表数据
+            function processWorksheetData(jsonData) {
+                // 清空之前的数据
+                worksheetData = [];
+                
+                // 为每行数据创建新的对象，包含所有固定列
+                jsonData.forEach((row, index) => {
+                    // 创建新的行对象，包含所有固定列头
+                    const newRow = {
+                        '行号': index + 2 // Excel行号从1开始，标题占一行，所以数据行从2开始
+                    };
+                    
+                    // 初始化所有固定列为空字符串
+                    fixedHeaders.forEach(header => {
+                        newRow[header] = '';
+                    });
+                    
+                    // 如果有匹配的列头，尝试填充数据
+                    for (const key in row) {
+                        const normalizedKey = key.trim();
+                        // 查找是否有相似的列头
+                        const matchedHeader = fixedHeaders.find(header => 
+                            header.includes(normalizedKey) || normalizedKey.includes(header)
+                        );
+                        
+                        if (matchedHeader) {
+                            newRow[matchedHeader] = row[key];
+                        }
+                    }
+                    
+                    worksheetData.push(newRow);
+                });
+                
+                // 显示数据表格
+                displayDataTable();
+            }
+            
+            // 显示数据表格
+            function displayDataTable() {
+                // 清空表格
+                dataTable.innerHTML = '';
+                
+                // 创建表头
+                const thead = document.createElement('thead');
+                const headerRow = document.createElement('tr');
+                
+                // 添加行号列
+                const rowNumHeader = document.createElement('th');
+                rowNumHeader.textContent = '行号';
+                headerRow.appendChild(rowNumHeader);
+                
+                // 添加其他列头
+                fixedHeaders.forEach(header => {
+                    const th = document.createElement('th');
+                    th.textContent = header;
+                    headerRow.appendChild(th);
+                });
+                
+                thead.appendChild(headerRow);
+                dataTable.appendChild(thead);
+                
+                // 创建表体
+                const tbody = document.createElement('tbody');
+                
+                worksheetData.forEach((row, index) => {
+                    const tr = document.createElement('tr');
+                    
+                    // 添加行号
+                    const rowNumCell = document.createElement('td');
+                    rowNumCell.textContent = row['行号'];
+                    tr.appendChild(rowNumCell);
+                    
+                    // 添加其他单元格
+                    fixedHeaders.forEach(header => {
+                        const td = document.createElement('td');
+                        
+                        // 对于"属性值"列，创建可编辑的输入框
+                        if (header === '属性值（仅填写此列）') {
+                            const input = document.createElement('input');
+                            input.type = 'text';
+                            input.className = 'property-value-input';
+                            input.value = row[header] || '';
+                            input.dataset.rowIndex = index;
+                            input.dataset.header = header;
+                            
+                            // 添加输入事件，更新数据
+                            input.addEventListener('input', (e) => {
+                                const rowIndex = parseInt(e.target.dataset.rowIndex);
+                                const headerName = e.target.dataset.header;
+                                worksheetData[rowIndex][headerName] = e.target.value;
+                            });
+                            
+                            td.appendChild(input);
+                        } else {
+                            td.textContent = row[header] || '';
+                        }
+                        
+                        tr.appendChild(td);
+                    });
+                    
+                    tbody.appendChild(tr);
+                });
+                
+                dataTable.appendChild(tbody);
+            }
+            
+            // 导出Excel文件
+            function exportExcel() {
+                try {
+                    // 创建新的工作簿
+                    const newWorkbook = XLSX.utils.book_new();
+                    
+                    // 准备导出数据
+                    const exportData = worksheetData.map(row => {
+                        const exportRow = {};
+                        fixedHeaders.forEach(header => {
+                            exportRow[header] = row[header] || '';
+                        });
+                        return exportRow;
+                    });
+                    
+                    // 创建工作表
+                    const worksheet = XLSX.utils.json_to_sheet(exportData);
+                    
+                    // 设置列宽
+                    const columnWidths = fixedHeaders.map(() => ({ wch: 20 })); // 默认列宽为20
+                    worksheet['!cols'] = columnWidths;
+                    
+                    // 添加工作表到工作簿
+                    XLSX.utils.book_append_sheet(newWorkbook, worksheet, 'Sheet1');
+                    
+                    // 导出文件
+                    XLSX.writeFile(newWorkbook, `处理后的Excel_${new Date().toLocaleString('zh-CN').replace(/[/\:]/g, '-')}.xlsx`);
+                    
+                    showStatus('文件导出成功', 'success');
+                } catch (error) {
+                    showStatus('文件导出失败: ' + error.message, 'error');
+                }
+            }
+            
+            // 清除数据
+            function clearData() {
+                workbook = null;
+                worksheetData = [];
+                fileInput.value = '';
+                fileInfo.style.display = 'none';
+                controlPanel.style.display = 'none';
+                tableContainer.style.display = 'none';
+                dataTable.innerHTML = '';
+                showStatus('', '');
+            }
+            
+            // 显示状态消息
+            function showStatus(message, type) {
+                if (message) {
+                    statusMessage.textContent = message;
+                    statusMessage.className = 'status-message ' + (type === 'error' ? 'status-error' : 'status-success');
+                    statusMessage.style.display = 'block';
+                    
+                    // 3秒后自动隐藏成功消息
+                    if (type !== 'error') {
+                        setTimeout(() => {
+                            statusMessage.style.display = 'none';
+                        }, 3000);
+                    }
+                } else {
+                    statusMessage.style.display = 'none';
+                }
+            }
+        });
+    </script>
+</body>
+</html>
