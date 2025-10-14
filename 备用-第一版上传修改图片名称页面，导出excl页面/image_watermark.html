@@ -190,8 +190,7 @@
         let targetImages = [];
         let processedImages = [];
         let zipFile = null;
-        let rootFolderName = ''; // 新增：存储根文件夹名称
-
+        
         function loadWatermark() {
             const fileInput = document.getElementById('watermarkInput');
             const file = fileInput.files[0];
@@ -252,25 +251,11 @@
             const files = Array.from(folderInput.files).filter(file => file.type.startsWith('image/'));
             
             targetImages = [];
-            // 重置根文件夹名称
-            rootFolderName = '';
+            // 不再清空预览区域，因为不需要显示预览
             
             let loadedCount = 0;
             
             files.forEach(file => {
-                // 获取相对路径信息
-                const relativePath = file.webkitRelativePath;
-                // 提取文件夹路径（去掉文件名）
-                const pathParts = relativePath.split('/');
-                
-                // 设置根文件夹名称（第一个文件夹）
-                if (!rootFolderName && pathParts.length > 1) {
-                    rootFolderName = pathParts[0];
-                }
-                
-                // 计算相对于根文件夹的路径
-                const folderPath = pathParts.length > 2 ? pathParts.slice(1, -1).join('/') : '';
-                
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     const img = new Image();
@@ -278,9 +263,20 @@
                         targetImages.push({
                             file: file,
                             image: img,
-                            src: e.target.result,
-                            folderPath: folderPath // 新增：存储文件所在的文件夹路径
+                            src: e.target.result
                         });
+                        
+                        // 移除预览显示代码
+                        // const item = document.createElement('div');
+                        // item.className = 'preview-item';
+                        // const imgElement = document.createElement('img');
+                        // imgElement.src = e.target.result;
+                        // const filename = document.createElement('div');
+                        // filename.className = 'filename';
+                        // filename.textContent = file.name;
+                        // item.appendChild(imgElement);
+                        // item.appendChild(filename);
+                        // preview.appendChild(item);
                         
                         loadedCount++;
                         if (loadedCount === files.length) {
@@ -317,7 +313,7 @@
             let processedCount = 0;
             
             // 使用固定的默认参数
-            const opacity = 1;
+            const opacity = 0.8;
             
             targetImages.forEach((targetImage, index) => {
                 setTimeout(() => {
@@ -330,22 +326,16 @@
                     // 绘制原图
                     ctx.drawImage(targetImage.image, 0, 0);
                     
-                    // 修改水印处理方式，确保颜色与原图一致
-                    // 使用'overlay'或'source-atop'合成模式来保留原图颜色
-                    ctx.globalCompositeOperation = 'source-atop'; // 这个模式会让水印只显示在原图的不透明部分，并且保留原图颜色
+                    // 水印图片完全覆盖目标图片（两张图叠加）
                     ctx.globalAlpha = opacity;
                     ctx.drawImage(watermarkImage, 0, 0, targetImage.image.width, targetImage.image.height);
-                    
-                    // 重置合成模式
-                    ctx.globalCompositeOperation = 'source-over';
                     ctx.globalAlpha = 1;
                     
                     // 转换为blob
                     canvas.toBlob(function(blob) {
                         processedImages.push({
-                            name: targetImage.file.name,  
-                            blob: blob,
-                            folderPath: targetImage.folderPath // 保留文件夹路径信息
+                            name: targetImage.file.name,  // 直接使用原文件名，不加前缀
+                            blob: blob
                         });
                         
                         processedCount++;
@@ -371,28 +361,13 @@
             progressText.textContent = '正在创建ZIP文件...';
             
             const zip = new JSZip();
-            
-            // 创建一个主文件夹，使用根文件夹名称或默认名称
-            const mainFolder = zip.folder(rootFolderName || 'watermarked_images');
+            // 移除文件夹创建，直接在ZIP根目录添加文件
+            // const folder = zip.folder('watermarked_images');
             
             let addedCount = 0;
             processedImages.forEach(processedImage => {
-                // 根据folderPath将文件添加到相应的文件夹中
-                if (processedImage.folderPath) {
-                    // 如果有子文件夹路径，创建或使用该路径
-                    const pathParts = processedImage.folderPath.split('/');
-                    let currentFolder = mainFolder;
-                    
-                    pathParts.forEach(part => {
-                        currentFolder = currentFolder.folder(part);
-                    });
-                    
-                    currentFolder.file(processedImage.name, processedImage.blob);
-                } else {
-                    // 如果没有子文件夹，直接添加到主文件夹
-                    mainFolder.file(processedImage.name, processedImage.blob);
-                }
-                
+                // 直接添加到ZIP根目录
+                zip.file(processedImage.name, processedImage.blob);
                 addedCount++;
                 
                 if (addedCount === processedImages.length) {

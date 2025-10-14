@@ -138,8 +138,8 @@
     </div>
 
     <script>
-        // 修改图片名称数组为包含文件夹信息的对象数组
-        let imageInfo = [];
+        // 图片名称数组
+        let imageNames = [];
         // 保存当前工作簿对象，用于导出
         let currentWorkbook = null;
         let currentSheetName = null;
@@ -188,33 +188,16 @@
             });
         });
         
-        // 处理上传的文件 - 修改为支持子文件夹
+        // 处理上传的文件
         function handleFiles(files) {
-            imageInfo = []; // 清空之前的图片信息
+            imageNames = []; // 清空之前的图片名称
             
-            // 过滤出图片文件并保存路径信息
+            // 过滤出图片文件
             const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
             
-            // 获取图片名称和文件夹信息
+            // 获取图片名称
             imageFiles.forEach(file => {
-                // 使用webkitRelativePath获取相对路径
-                const relativePath = file.webkitRelativePath;
-                
-                // 解析路径，获取文件夹名称
-                const pathParts = relativePath.split('/');
-                let folderName = '';
-                
-                // 如果路径包含子文件夹
-                if (pathParts.length > 2) {
-                    // 获取第一个子文件夹名称
-                    folderName = pathParts[1];
-                }
-                
-                // 添加到imageInfo数组
-                imageInfo.push({
-                    name: file.name,
-                    folderName: folderName
-                });
+                imageNames.push(file.name);
             });
             
             // 更新图片名称列表显示
@@ -222,20 +205,20 @@
             
         }
         
-        // 更新图片名称列表显示 - 修改为显示文件夹信息
+        // 更新图片名称列表显示
         function updateImageNamesList() {
             const listContainer = document.getElementById('image-names-list');
             listContainer.innerHTML = '';
             
-            if (imageInfo.length === 0) {
+            if (imageNames.length === 0) {
                 listContainer.innerHTML = '<p>暂无图片名称</p>';
                 return;
             }
             
             const ul = document.createElement('ul');
-            imageInfo.forEach(info => {
+            imageNames.forEach(name => {
                 const li = document.createElement('li');
-                li.textContent = info.name + (info.folderName ? ` (文件夹: ${info.folderName})` : '');
+                li.textContent = name;
                 ul.appendChild(li);
             });
             listContainer.appendChild(ul);
@@ -268,7 +251,7 @@
                 displayExcelData(jsonData);
                 
                 // 提示用户可以导出包含图片名称的Excel
-                if (imageInfo.length > 0) {
+                if (imageNames.length > 0) {
                     alert('图片名称已准备好，请点击"导出包含图片名称的Excel"按钮添加到第8行并导出');
                 }
             };
@@ -327,10 +310,14 @@
                 return;
             }
             
-            if (imageInfo.length === 0) {
+            if (imageNames.length === 0) {
                 alert('请先选择图片文件夹');
                 return;
             }
+            
+            // 获取店铺分类名称输入框的值
+            const storeCategoryInput = document.getElementById('store-category-input');
+            const storeCategoryValue = storeCategoryInput ? storeCategoryInput.value.trim() : '';
             
             try {
                 // 创建新的工作簿
@@ -380,9 +367,9 @@
                 let startRow = 2;
                 
                 // 处理每张图片，添加到相应列
-                imageInfo.forEach((imgInfo, index) => {
+                imageNames.forEach((imgName, index) => {
                     // 提取不包含后缀的图片名称
-                    const nameWithoutExtension = imgInfo.name.substring(0, imgInfo.name.lastIndexOf('.')) || imgInfo.name;
+                    const nameWithoutExtension = imgName.substring(0, imgName.lastIndexOf('.')) || imgName;
                     
                     // 当前行号（行索引+1）
                     const currentRow = startRow + index + 1;
@@ -441,9 +428,9 @@
                     const statusCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.status});
                     newWorksheet[statusCell] = { t: 's', v: '下架' };
                     
-                    // 店铺分类名称 (N列) - 使用图片所在文件夹名称
+                    // 店铺分类名称 (N列) - 使用输入框的值
                     const shopCategoryCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.shopCategory});
-                    newWorksheet[shopCategoryCell] = { t: 's', v: imgInfo.folderName || '' };
+                    newWorksheet[shopCategoryCell] = { t: 's', v: storeCategoryValue };
                     
                     // 商品自定义ID (O列)
                     const customIdCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.customId});
@@ -480,7 +467,7 @@
                 
                 // 更新工作表范围以包含新添加的行
                 const originalRange = XLSX.utils.decode_range(newWorksheet['!ref'] || 'A1:A1');
-                const lastDataRow = startRow + imageInfo.length;
+                const lastDataRow = startRow + imageNames.length;
                 
                 // 确保新范围包含所有新添加的数据，扩展到V列(第21列索引)
                 const newRange = {
