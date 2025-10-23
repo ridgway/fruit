@@ -180,6 +180,11 @@
                     <span class="tab-title" title="产品图片前后名称/价格-修改">图片前后名称/价格-修改</span>
                     <div class="refresh-btn" onclick="refreshTab('addName', event)">↻</div>
                 </div>
+                <!-- 添加美团商品分类处理标签页 -->
+                <div class="tab" onclick="switchTab('meituanClass')">
+                    <span class="tab-title" title="美团商品分类处理">美团商品分类处理</span>
+                    <div class="refresh-btn" onclick="refreshTab('meituanClass', event)">↻</div>
+                </div>
             </div>
         </div>
         <div class="content">
@@ -194,6 +199,8 @@
             <iframe id="changName-frame" src="changName.html"></iframe>
             <!-- 添加图片名称添加iframe -->
             <iframe id="addName-frame" src="addName.html"></iframe>
+            <!-- 添加美团商品分类处理iframe -->
+            <iframe id="meituanClass-frame" src="meituan_class.html"></iframe>
         </div>
     </div>
 
