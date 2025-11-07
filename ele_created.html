@@ -148,7 +148,7 @@
         
         // 初始化上传区域事件监听
         document.addEventListener('DOMContentLoaded', function() {
-            // 检查XLSX库是否加载成功
+            // 检查XLSX库是否加载成1功
             setTimeout(function() {
                 if (typeof XLSX === 'undefined') {
                     alert('Excel处理库加载失败，请检查网络连接或刷新页面重试');
@@ -441,10 +441,10 @@
                     const statusCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.status});
                     newWorksheet[statusCell] = { t: 's', v: '下架' };
                     
-                    // 店铺分类名称 (N列) - 使用图片所在文件夹名称
+                    // 店铺分类名称 (N列) - 使用输入框的值或图片所在文件夹名称
                     const shopCategoryCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.shopCategory});
-                    newWorksheet[shopCategoryCell] = { t: 's', v: imgInfo.folderName || '' };
-                    
+                    const storeCategoryValue = document.getElementById('store-category-input').value.trim();
+                    newWorksheet[shopCategoryCell] = { t: 's', v: storeCategoryValue || imgInfo.folderName || '' };
                     // 商品自定义ID (O列)
                     const customIdCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.customId});
                     newWorksheet[customIdCell] = { t: 's', v: '' };
