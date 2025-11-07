@@ -199,6 +199,8 @@
                     // 转换为JSON数据
                     excelData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                     
+                    console.log(`Excel文件读取完成，共 ${excelData.length} 行数据`);
+                    
                     // 初始化列信息
                     initializeColumnInfo();
                     
@@ -362,6 +364,8 @@
             let processedCount = 0;
             const totalRows = excelData.length - 1; // 减去表头行
             
+            console.log(`开始处理数据，总行数: ${totalRows}`);
+            
             for (let i = 1; i < excelData.length; i++) {
                 // 创建新行，复制原始行的所有数据（确保每一列都被保留）
                 const newRow = [...excelData[i]];
@@ -410,6 +414,8 @@
                 progressText.textContent = `处理中... ${processedCount}/${totalRows}`;
             }
             
+            console.log(`数据处理完成，共处理 ${processedCount} 行，processedData长度: ${processedData.length}`);
+            
             // 处理完成，隐藏进度条并自动下载文件
             progressDiv.style.display = 'none';
             
@@ -426,13 +432,20 @@
         }
         
         function downloadProcessedExcel() {
-            if (!processedData || processedData.length === 0) return;
+            if (!processedData || processedData.length === 0) {
+                console.error('没有可导出的数据');
+                return;
+            }
+            
+            console.log(`开始导出数据，共 ${processedData.length} 行（包括表头）`);
             
             // 创建一个新的工作簿
             const newWorkbook = XLSX.utils.book_new();
             
             // 将处理后的数据转换为工作表（包含所有列的数据）
             const worksheet = XLSX.utils.aoa_to_sheet(processedData);
+            
+            console.log('工作表创建完成');
             
             // 复制原始工作簿的单元格格式（如果存在）
             if (workbook) {
@@ -472,6 +485,8 @@
             // 添加工作表到工作簿
             XLSX.utils.book_append_sheet(newWorkbook, worksheet, "处理后的数据");
             
+            console.log('工作表添加到工作簿完成');
+            
             // 生成时间戳
             const now = new Date();
             const year = now.getFullYear();
@@ -483,7 +498,16 @@
             const timestamp = `${year}${month}${day}_${hours}${minutes}${seconds}`;
             
             // 下载Excel文件
-            XLSX.writeFile(newWorkbook, `美团商品分类处理结果_${timestamp}.xlsx`);
+            const fileName = `美团商品分类处理结果_${timestamp}.xlsx`;
+            console.log(`开始下载文件: ${fileName}`);
+            
+            try {
+                XLSX.writeFile(newWorkbook, fileName);
+                console.log('文件下载完成');
+            } catch (error) {
+                console.error('文件下载出错:', error);
+                alert('文件下载出错，请重试');
+            }
         }
     </script>
 </body>
