@@ -185,6 +185,16 @@
                     <span class="tab-title" title="美团商品分类处理">美团商品分类处理</span>
                     <div class="refresh-btn" onclick="refreshTab('meituanClass', event)">↻</div>
                 </div>
+                <!-- 添加京东批量新建标签页 -->
+                <div class="tab" onclick="switchTab('jd')">
+                    <span class="tab-title" title="京东批量新建excl">京东新建excl</span>
+                    <div class="refresh-btn" onclick="refreshTab('jd', event)">↻</div>
+                </div>
+                <!-- 添加京东图片名称匹配标签页 -->
+                <div class="tab" onclick="switchTab('jdImageName')">
+                    <span class="tab-title" title="京东图片名称匹配">京东图片名称匹配</span>
+                    <div class="refresh-btn" onclick="refreshTab('jdImageName', event)">↻</div>
+                </div>
             </div>
         </div>
         <div class="content">
@@ -201,6 +211,10 @@
             <iframe id="addName-frame" src="addName.html"></iframe>
             <!-- 添加美团商品分类处理iframe -->
             <iframe id="meituanClass-frame" src="meituan_class.html"></iframe>
+            <!-- 添加京东批量新建iframe -->
+            <iframe id="jd-frame" src="jd_created.html"></iframe>
+            <!-- 添加京东图片名称匹配iframe -->
+            <iframe id="jdImageName-frame" src="jd_imagename.html"></iframe>
         </div>
     </div>
 

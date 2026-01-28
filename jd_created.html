@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>京东批量新建</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .file-input {
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 10px 0;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .excel-data {
+            margin-top: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .image-names {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .upload-section {
+            margin-top: 20px;
+            padding: 20px;
+            border: 2px dashed #ccc;
+            text-align: center;
+            border-radius: 4px;
+        }
+        .upload-section.dragover {
+            border-color: #4CAF50;
+            background-color: #f0f8f0;
+        }
+        .input-section {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .input-section label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .input-section input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>京东批量新建</h1>
+        
+        <!-- Excel文件选择 -->
+        <div class="file-input">
+            <input type="file" id="excel-file" accept=".xlsx,.xls" style="display: none;">
+            <button onclick="readExcelFile()" style="display: none;">读取Excel文件</button>
+            <!-- 添加导出Excel按钮 -->
+            <button onclick="exportExcelWithImages()">导出包含图片名称的Excel</button>
+        </div>
+        
+        <!-- 店铺分类名称输入框 -->
+        <div class="input-section">
+            <label for="store-category-input">店铺分类名称：</label>
+            <input type="text" id="store-category-input" placeholder="请输入店铺分类名称（可选）">
+        </div>
+        
+        <!-- 图片上传区域 -->
+        <div id="upload-area" class="upload-section">
+            <p>拖放文件夹到此处，或</p>
+            <label for="image-upload">
+                <span style="text-decoration: underline; cursor: pointer;">选择图片文件夹</span>
+            </label>
+            <input type="file" id="image-upload" style="display: none;" webkitdirectory directory mozdirectory multiple>
+        </div>
+
+        <!-- 图片名称显示区域 -->
+        <div class="image-names">
+            <h3>图片名称列表：</h3>
+            <div id="image-names-list"></div>
+        </div>
+        
+        <!-- Excel数据显示区域 -->
+        <div class="excel-data">
+            <h3>Excel数据：</h3>
+            <div id="excel-data-container"></div>
+        </div>
+    </div>
+
+    <script>
+        // 修改图片名称数组为包含文件夹信息的对象数组
+        let imageInfo = [];
+        // 保存当前工作簿对象，用于导出
+        let currentWorkbook = null;
+        let currentSheetName = null;
+        
+        // 调试信息输出函数
+        
+        // 初始化上传区域事件监听
+        document.addEventListener('DOMContentLoaded', function() {
+            // 检查XLSX库是否加载成功
+            setTimeout(function() {
+                if (typeof XLSX === 'undefined') {
+                    alert('Excel处理库加载失败，请检查网络连接或刷新页面重试');
+                } else {
+                    // 自动读取Excel文件
+                    autoReadExcelFile();
+                }
+            }, 2000);
+            
+            const uploadArea = document.getElementById('upload-area');
+            const imageUpload = document.getElementById('image-upload');
+            
+            // 拖放事件
+            uploadArea.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+            
+            uploadArea.addEventListener('dragleave', function() {
+                uploadArea.classList.remove('dragover');
+            });
+            
+            uploadArea.addEventListener('drop', function(e) {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                
+                if (e.dataTransfer.files.length > 0) {
+                    handleFiles(e.dataTransfer.files);
+                }
+            });
+            
+            // 文件选择事件
+            imageUpload.addEventListener('change', function() {
+                if (this.files.length > 0) {
+                    handleFiles(this.files);
+                }
+            });
+        });
+        
+        // 处理上传的文件 - 修改为支持子文件夹
+        function handleFiles(files) {
+            imageInfo = []; // 清空之前的图片信息
+            
+            // 过滤出图片文件并保存路径信息
+            const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+            
+            // 获取图片名称和文件夹信息
+            imageFiles.forEach(file => {
+                // 使用webkitRelativePath获取相对路径
+                const relativePath = file.webkitRelativePath;
+                
+                // 解析路径，获取文件夹名称
+                const pathParts = relativePath.split('/');
+                let folderName = '';
+                
+                // 如果路径包含子文件夹
+                if (pathParts.length > 2) {
+                    // 获取第一个子文件夹名称
+                    folderName = pathParts[1];
+                }
+                
+                // 添加到imageInfo数组
+                imageInfo.push({
+                    name: file.name,
+                    folderName: folderName
+                });
+            });
+            
+            // 更新图片名称列表显示
+            updateImageNamesList();
+            
+        }
+        
+        // 定义列位置映射
+        const columnPositions = {
+            emptyColumn: 0,       // A列 - 空列
+            productName: 1,       // B列 - 商品名称*
+            shortTitle: 2,        // C列 - 商品短标题
+            category: 3,          // D列 - 商品类目（末级类目ID）
+            brandId: 4,           // E列 - 商品品牌ID
+            skuCode: 5,           // F列 - 商家sku编码
+            weight: 6,            // G列 - 商品重量*（单位：kg）
+            price: 7,             // H列 - 商品价格*（单位：元）
+            categoryLevel1: 8,    // I列 - 一级店内分类
+            categoryLevel2: 9,    // J列 - 二级店内分类
+            categoryLevel3: 10,   // K列 - 三级店内分类
+            packagingFee: 11,     // L列 - 打包费(元)
+            salesCityId: 12,      // M列 - 销售城市ID
+            upcCode: 13,          // N列 - upc编码
+            returnLabel: 14,       // P列 - 无理由退货标签
+            productDetail: 15,    // O列 - 商品详情
+
+        };
+        
+        // 更新图片名称列表显示 - 修改为显示文件夹信息
+        function updateImageNamesList() {
+            const listContainer = document.getElementById('image-names-list');
+            listContainer.innerHTML = '';
+            
+            if (imageInfo.length === 0) {
+                listContainer.innerHTML = '<p>暂无图片名称</p>';
+                return;
+            }
+            
+            const ul = document.createElement('ul');
+            imageInfo.forEach(info => {
+                const li = document.createElement('li');
+                li.textContent = info.name + (info.folderName ? ` (文件夹: ${info.folderName})` : '');
+                ul.appendChild(li);
+            });
+            listContainer.appendChild(ul);
+        }
+        
+        // 读取Excel文件
+        function readExcelFile() {
+            const fileInput = document.getElementById('excel-file');
+            
+            if (fileInput.files.length === 0) {
+                alert('请先选择Excel文件');
+                return;
+            }
+            
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                currentWorkbook = XLSX.read(data, { type: 'array' });
+                
+                // 获取第一个工作表
+                currentSheetName = currentWorkbook.SheetNames[0];
+                const worksheet = currentWorkbook.Sheets[currentSheetName];
+                
+                // 将工作表转换为JSON
+                const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                
+                // 显示Excel数据
+                displayExcelData(jsonData);
+                
+                // 提示用户可以导出包含图片名称的Excel
+                if (imageInfo.length > 0) {
+                    alert('图片名称已准备好，请点击"导出包含图片名称的Excel"按钮添加到第8行并导出');
+                }
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+        
+        // 显示Excel数据
+        function displayExcelData(data) {
+            const container = document.getElementById('excel-data-container');
+            
+            if (data.length === 0) {
+                container.innerHTML = '<p>Excel文件中没有数据</p>';
+                return;
+            }
+            
+            // 创建表格
+            const table = document.createElement('table');
+            
+            // 创建表头
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            
+            // 获取所有列名
+            const headers = Object.keys(data[0]);
+            headers.forEach(header => {
+                const th = document.createElement('th');
+                th.textContent = header;
+                headerRow.appendChild(th);
+            });
+            
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+            
+            // 创建表格内容
+            const tbody = document.createElement('tbody');
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                headers.forEach(header => {
+                    const td = document.createElement('td');
+                    td.textContent = row[header] || '';
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+            
+            table.appendChild(tbody);
+            container.innerHTML = '';
+            container.appendChild(table);
+        }
+        
+        // 导出包含图片名称的Excel文件
+        function exportExcelWithImages() {
+            if (imageInfo.length === 0) {
+                alert('请先上传图片');
+                return;
+            }
+        
+            // 创建一个新的工作簿
+            const wb = XLSX.utils.book_new();
+            
+            // 创建一个空的工作表
+            const ws = {};
+            
+            // 定义列标题
+            const headers = [
+                '',                  // A列 - 空列
+                '商品名称*',           // B列
+                '商品短标题',          // C列
+                '商品类目（末级类目ID）', // D列
+                '商品品牌ID',          // E列
+                '商家sku编码',         // F列
+                '商品重量*（单位：kg）', // G列
+                '商品价格*（单位：元）', // H列
+                '一级店内分类',         // I列
+                '二级店内分类',         // J列
+                '三级店内分类',         // K列
+                '打包费(元)',          // L列
+                '销售城市ID',          // M列
+                'upc编码',            // N列
+                '商品详情',            // O列
+                '无理由退货标签'       // P列
+            ];
+            
+            // 将列标题写入工作表的第一行
+            headers.forEach((header, index) => {
+                const cellRef = XLSX.utils.encode_cell({r: 0, c: index});
+                ws[cellRef] = {v: header};
+            });
+        
+            // 添加从Excel中读取的第2、3、4行数据
+            if (excelRow2) {
+                // 将第2行数据从A列开始写入导出Excel的第2行（索引1）
+                Object.keys(excelRow2).forEach((key, colIndex) => {
+                    const cellRef = XLSX.utils.encode_cell({r: 1, c: colIndex}); // 第2行 (索引1)，从A列开始
+                    ws[cellRef] = {v: excelRow2[key]};
+                });
+            }
+            
+            if (excelRow3) {
+                // 将第3行数据从A列开始写入导出Excel的第3行（索引2）
+                Object.keys(excelRow3).forEach((key, colIndex) => {
+                    const cellRef = XLSX.utils.encode_cell({r: 2, c: colIndex}); // 第3行 (索引2)，从A列开始
+                    ws[cellRef] = {v: excelRow3[key]};
+                });
+            }
+            
+        
+            // 从第5行开始添加图片数据
+            for (let i = 0; i < imageInfo.length; i++) {
+                const file = imageInfo[i];
+                const row = i + 3; // 从第5行开始 (索引4)
+                
+                // 提取图片名称（不含扩展名）
+                const fileName = file.name.substring(0, file.name.lastIndexOf('.'));
+                
+                // A列 - 空列
+                const emptyCellRef = XLSX.utils.encode_cell({r: row, c: columnPositions.emptyColumn});
+                ws[emptyCellRef] = {v: ''};
+                
+                // B列 - 商品名称* (必填)
+                const nameCellRef = XLSX.utils.encode_cell({r: row, c: columnPositions.productName});
+                ws[nameCellRef] = {v: fileName};
+                
+                // C列 - 商品短标题 (可选)
+                const shortTitleCellRef = XLSX.utils.encode_cell({r: row, c: columnPositions.shortTitle});
+                ws[shortTitleCellRef] = {v: ''};
+                
+                // D列 - 商品类目（末级类目ID）(可选)
+                const categoryCellRef = XLSX.utils.encode_cell({r: row, c: columnPositions.category});
+                ws[categoryCellRef] = {v: ''};
+                
+                // E列 - 商品品牌ID (可选)
+                const brandIdCellRef = XLSX.utils.encode_cell({r: row, c: columnPositions.brandId});
+                ws[brandIdCellRef] = {v: ''};
+                
+                // F列 - 商家sku编码 (可选)
+                const skuCodeCellRef = XLSX.utils.encode_cell({r: row, c: columnPositions.skuCode});
+                ws[skuCodeCellRef] = {v: ''};
+                
+                // G列 - 商品重量*（单位：kg）(必填)
+                const weightCellRef = XLSX.utils.encode_cell({r: row, c: columnPositions.weight});
+                ws[weightCellRef] = {v: 1.00};
+                
+                // H列 - 商品价格*（单位：元）(必填)
+                const priceCellRef = XLSX.utils.encode_cell({r: row, c: columnPositions.price});
+                ws[priceCellRef] = {v: 199.00};
+                
+                // I列 - 一级店内分类 (可选) - 读取当前图片所属的文件夹
+                const categoryLevel1CellRef = XLSX.utils.encode_cell({r: row, c: columnPositions.categoryLevel1});
+                ws[categoryLevel1CellRef] = {v: file.folderName || ''};
+                
+                // J列 - 二级店内分类 (可选)
+                const categoryLevel2CellRef = XLSX.utils.encode_cell({r: row, c: columnPositions.categoryLevel2});
+                ws[categoryLevel2CellRef] = {v: ''};
+                
+                // K列 - 三级店内分类 (可选)
+                const categoryLevel3CellRef = XLSX.utils.encode_cell({r: row, c: columnPositions.categoryLevel3});
+                ws[categoryLevel3CellRef] = {v: ''};
+                
+                // L列 - 打包费(元) (可选)
+                const packagingFeeCellRef = XLSX.utils.encode_cell({r: row, c: columnPositions.packagingFee});
+                ws[packagingFeeCellRef] = {v: ''};
+                
+                // M列 - 销售城市ID (可选)
+                const salesCityIdCellRef = XLSX.utils.encode_cell({r: row, c: columnPositions.salesCityId});
+                ws[salesCityIdCellRef] = {v: ''};
+                
+                // N列 - upc编码 (可选)
+                const upcCodeCellRef = XLSX.utils.encode_cell({r: row, c: columnPositions.upcCode});
+                ws[upcCodeCellRef] = {v: ''};
+                
+                // O列 - 无理由退货标签 (可选)
+                const returnLabelCellRef = XLSX.utils.encode_cell({r: row, c: columnPositions.returnLabel});
+                ws[returnLabelCellRef] = {v: ''};
+                
+                // P列 - 商品详情 (可选)
+                const productDetailCellRef = XLSX.utils.encode_cell({r: row, c: columnPositions.productDetail});
+                ws[productDetailCellRef] = {v: ''};
+            }
+        
+            // 计算工作表范围 (16列 - A到P)
+            const range = {
+                s: {c: 0, r: 0}, // start cell
+                e: {c: 15, r: Math.max(imageInfo.length + 4, 4)} // end cell (15 = P列, rows = 标题行+数据行)
+            };
+            
+            // 设置工作表范围
+            ws['!ref'] = XLSX.utils.encode_range(range);
+            
+            // 将工作表添加到工作簿
+            XLSX.utils.book_append_sheet(wb, ws, '商品信息');
+            
+            // 生成文件名 - 使用第一个图片的名称作为导出文件名
+            const firstImageName = imageInfo[0].name.substring(0, imageInfo[0].name.lastIndexOf('.'));
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const fileName = `${firstImageName}_${timestamp}.xlsx`;
+            
+            // 写入文件
+            XLSX.writeFile(wb, fileName);
+            
+        }
+
+        // 保存Excel的第2、3、4行数据
+        let excelRow2 = null;
+        let excelRow3 = null;
+        
+        // 使用XMLHttpRequest自动读取Excel文件
+        // 自动读取src/jd.xls文件
+        async function autoReadExcelFile() {
+            try {
+                const response = await fetch('src/jd.xls');
+                const arrayBuffer = await response.arrayBuffer();
+                
+                // 使用XLSX读取Excel文件
+                const workbook = XLSX.read(arrayBuffer, {type: 'array', cellDates: true});
+                
+                // 假设我们要读取第一个工作表
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                
+                // 将工作表数据转换为JSON格式
+                const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                
+                console.log('Excel数据:', jsonData);
+                
+                // 保存第2、3、4行数据（数组索引为1、2、3）
+                if (jsonData.length >= 1) excelRow2 = jsonData[0]; // 第2行数据
+                if (jsonData.length >= 2) excelRow3 = jsonData[1]; // 第3行数据
+                
+                // 保存当前工作簿和工作表名称
+                currentWorkbook = workbook;
+                currentSheetName = firstSheetName;
+                
+                // 显示成功消息
+            } catch (error) {
+                console.error('读取Excel文件失败:', error);
+                alert('读取Excel文件失败，请查看控制台获取详细信息');
+            }
+        }
+
+    </script>
+</body>
+</html>

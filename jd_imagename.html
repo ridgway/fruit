@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>京东图片名称处理</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- 引入 JSZip 库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .file-input {
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 10px 5px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .excel-data {
+            margin-top: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .image-names {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .upload-section {
+            margin-top: 20px;
+            padding: 20px;
+            border: 2px dashed #ccc;
+            text-align: center;
+            border-radius: 4px;
+        }
+        .upload-section.dragover {
+            border-color: #4CAF50;
+            background-color: #f0f8f0;
+        }
+        .input-section {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .input-section label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .input-section input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .result-section {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e8f5e8;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .progress-container {
+            margin-top: 20px;
+            display: none;
+        }
+        .progress-bar {
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress {
+            height: 100%;
+            background-color: #4CAF50;
+            width: 0%;
+            transition: width 0.3s;
+        }
+        .progress-text {
+            margin-top: 5px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>京东图片名称处理</h1>
+        
+        <!-- Excel文件选择 -->
+        <div class="file-input">
+            <label for="excel-file">上传XLS文件：</label>
+            <input type="file" id="excel-file" accept=".xlsx,.xls">
+        </div>
+        
+        <!-- Excel数据显示区域 -->
+        <!-- <div class="excel-data">
+            <h3>Excel数据：</h3>
+            <div id="excel-data-container"></div>
+        </div> -->
+        
+        <!-- 输入框 -->
+        <div class="input-section">
+            <label for="suffix-input">后缀文本（可选）：</label>
+            <input type="text" id="suffix-input" placeholder="请输入要添加到SKU编码后的文本">
+        </div>
+        
+        <!-- 图片上传区域 -->
+        <div id="upload-area" class="upload-section">
+            <p>拖放文件夹到此处，或</p>
+            <label for="image-upload">
+                <span style="text-decoration: underline; cursor: pointer;">选择图片文件夹</span>
+            </label>
+            <input type="file" id="image-upload" style="display: none;" webkitdirectory directory mozdirectory multiple>
+        </div>
+
+        <!-- 图片名称显示区域 -->
+        <!-- <div class="image-names">
+            <h3>图片名称列表：</h3>
+            <div id="image-names-list"></div>
+        </div> -->
+        
+        <!-- 匹配结果显示区域 -->
+        <div class="result-section">
+            <h3>匹配结果：</h3>
+            <div id="match-results"></div>
+        </div>
+        
+        <!-- 进度条 -->
+        <div class="progress-container" id="progress-container">
+            <div class="progress-bar">
+                <div class="progress" id="progress"></div>
+            </div>
+            <div class="progress-text" id="progress-text">0%</div>
+        </div>
+        
+        <!-- 操作按钮 -->
+        <div class="file-input">
+            <button onclick="exportRenamedImages()">导出重命名的图片</button>
+        </div>
+    </div>
+
+    <script>
+        // 存储Excel数据
+        let excelData = [];
+        // 存储图片信息
+        let imageInfo = [];
+        // 存储匹配结果
+        let matchResults = [];
+        
+        // 初始化上传区域事件监听
+        document.addEventListener('DOMContentLoaded', function() {
+            const uploadArea = document.getElementById('upload-area');
+            const imageUpload = document.getElementById('image-upload');
+            const excelFile = document.getElementById('excel-file');
+            
+            // 拖放事件
+            uploadArea.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+            
+            uploadArea.addEventListener('dragleave', function() {
+                uploadArea.classList.remove('dragover');
+            });
+            
+            uploadArea.addEventListener('drop', function(e) {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                
+                if (e.dataTransfer.files.length > 0) {
+                    handleFiles(e.dataTransfer.files);
+                }
+            });
+            
+            // 文件选择事件
+            imageUpload.addEventListener('change', function() {
+                if (this.files.length > 0) {
+                    handleFiles(this.files);
+                }
+            });
+            
+            // Excel文件选择事件
+            excelFile.addEventListener('change', function() {
+                if (this.files.length > 0) {
+                    readExcelFile(this.files[0]);
+                }
+            });
+        });
+        
+        // 处理上传的文件 - 支持子文件夹
+        function handleFiles(files) {
+            imageInfo = []; // 清空之前的图片信息
+            
+            // 过滤出图片文件
+            const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+            
+            // 获取图片名称信息
+            imageFiles.forEach(file => {
+                // 使用webkitRelativePath获取相对路径
+                const relativePath = file.webkitRelativePath || file.name;
+                
+                // 解析路径，获取文件夹名称和图片名称
+                const pathParts = relativePath.split('/');
+                let folderName = '';
+                let imageName = file.name;
+                
+                // 如果路径包含子文件夹
+                if (pathParts.length > 1) {
+                    // 获取父文件夹名称（最后一个路径部分之前的那部分）
+                    folderName = pathParts[pathParts.length - 2] || '';
+                }
+                
+                // 添加到imageInfo数组，包括原始文件对象
+                imageInfo.push({
+                    name: imageName,
+                    folderName: folderName,
+                    fullPath: relativePath,
+                    file: file  // 保存原始文件对象
+                });
+            });
+            
+            // 更新图片名称列表显示
+            updateImageNamesList();
+            
+            // 执行匹配
+            performMatch();
+        }
+        
+        // 读取Excel文件
+        function readExcelFile(file) {
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                
+                // 获取第一个工作表
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                
+                // 将工作表转换为JSON
+                excelData = XLSX.utils.sheet_to_json(worksheet);
+                
+                // 显示Excel数据
+                displayExcelData(excelData);
+                
+                // 执行匹配
+                performMatch();
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+        
+        // 显示Excel数据
+        function displayExcelData(data) {
+            const container = document.getElementById('excel-data-container');
+            
+            if (data.length === 0) {
+                container.innerHTML = '<p>Excel文件中没有数据</p>';
+                return;
+            }
+            
+            // 创建表格
+            const table = document.createElement('table');
+            
+            // 创建表头
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            
+            // 获取所有列名
+            const headers = Object.keys(data[0]);
+            headers.forEach(header => {
+                const th = document.createElement('th');
+                th.textContent = header;
+                headerRow.appendChild(th);
+            });
+            
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+            
+            // 创建表格内容
+            const tbody = document.createElement('tbody');
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                headers.forEach(header => {
+                    const td = document.createElement('td');
+                    td.textContent = row[header] || '';
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+            
+            table.appendChild(tbody);
+            container.innerHTML = '';
+            container.appendChild(table);
+        }
+        
+        // 更新图片名称列表显示
+        function updateImageNamesList() {
+            const listContainer = document.getElementById('image-names-list');
+            listContainer.innerHTML = '';
+            
+            if (imageInfo.length === 0) {
+                listContainer.innerHTML = '<p>暂无图片名称</p>';
+                return;
+            }
+            
+            const ul = document.createElement('ul');
+            imageInfo.forEach(info => {
+                const li = document.createElement('li');
+                li.textContent = info.name + (info.folderName ? ` (文件夹: ${info.folderName})` : '');
+                ul.appendChild(li);
+            });
+            listContainer.appendChild(ul);
+        }
+        
+        // 执行匹配
+        function performMatch() {
+            if (excelData.length === 0 || imageInfo.length === 0) {
+                document.getElementById('match-results').innerHTML = '<p>请先上传Excel文件和图片</p>';
+                console.log('Excel数据或图片信息为空');
+                console.log('excelData长度:', excelData.length);
+                console.log('imageInfo长度:', imageInfo.length);
+                return;
+            }
+            
+            console.log('开始匹配，Excel数据:', excelData);
+            console.log('图片信息:', imageInfo);
+            
+            // 调试：显示Excel中的所有商品名称
+            console.log('Excel中的商品名称列:');
+            excelData.forEach((row, index) => {
+                const productName = getCellValue(row, '商品名称');
+                console.log(`第${index + 1}行，产品名称:`, productName, '完整行:', row);
+            });
+            
+            // 调试：显示图片名称
+            console.log('图片名称列表:');
+            imageInfo.forEach((img, index) => {
+                const imageName = img.name.substring(0, img.name.lastIndexOf('.'));
+                console.log(`第${index + 1}张图片，名称:`, imageName);
+            });
+            
+            matchResults = [];
+            
+            // 遍历每个图片，查找匹配的商品名称
+            imageInfo.forEach(img => {
+                // 提取图片名称（不含扩展名）
+                const imageName = img.name.substring(0, img.name.lastIndexOf('.'));
+                console.log('正在匹配图片名称:', imageName);
+                
+                // 在Excel数据中查找匹配的商品名称 - 使用精确匹配
+                const matchedRow = excelData.find(row => {
+                    // 检查商品名称列
+                    const productName = getCellValue(row, '商品名称');
+                    console.log('检查行数据:', row, '提取的产品名称:', productName);
+                    
+                    // 如果找到了产品名称，进行精确匹配检查
+                    if (productName) {
+                        // 检查图片名称是否与产品名称精确匹配
+                        const isMatch = productName === imageName;
+                        console.log(`精确匹配检查: "${productName}" === "${imageName}" = ${isMatch}`);
+                        return isMatch;
+                    }
+                    return false;
+                });
+                
+                if (matchedRow) {
+                    console.log('找到匹配项:', matchedRow);
+                    // 获取SKU编码
+                    const skuCode = getCellValue(matchedRow, 'sku编码');
+                    
+                    if (skuCode) {
+                        // 获取输入框内容
+                        const suffix = document.getElementById('suffix-input').value.trim();
+                        
+                        // 生成新的SKU编码
+                        const newSkuCode = suffix ? `${skuCode}${suffix}` : skuCode;
+                        
+                        matchResults.push({
+                            imageName: img.name,
+                            originalSkuCode: skuCode,
+                            newSkuCode: newSkuCode,
+                            productName: getCellValue(matchedRow, '商品名称')
+                        });
+                        
+                        console.log('添加匹配结果:', {
+                            imageName: img.name,
+                            originalSkuCode: skuCode,
+                            newSkuCode: newSkuCode,
+                            productName: getCellValue(matchedRow, '商品名称')
+                        });
+                    } else {
+                        console.log('匹配行未找到SKU编码:', matchedRow);
+                    }
+                } else {
+                    console.log('未找到匹配项，图片名称:', imageName);
+                }
+            });
+            
+            console.log('匹配完成，结果数量:', matchResults.length);
+            console.log('匹配结果:', matchResults);
+            
+            // 显示匹配结果
+            displayMatchResults();
+        }
+        
+        // 获取单元格值，支持指定列名
+        function getCellValue(row, key) {
+            if (row[key] !== undefined && row[key] !== null && row[key] !== '') {
+                return row[key].toString();
+            }
+            return null;
+        }
+        
+        // 显示匹配结果
+        function displayMatchResults() {
+            const resultsContainer = document.getElementById('match-results');
+            resultsContainer.innerHTML = '';
+            
+            if (matchResults.length === 0) {
+                resultsContainer.innerHTML = '<p>没有找到匹配的图片和商品</p>';
+                return;
+            }
+            
+            const ul = document.createElement('ul');
+            matchResults.forEach(result => {
+                const li = document.createElement('li');
+                li.textContent = `${result.imageName} -> ${result.newSkuCode} (原SKU: ${result.originalSkuCode}, 商品: ${result.productName})`;
+                ul.appendChild(li);
+            });
+            
+            resultsContainer.appendChild(ul);
+            
+            // 添加匹配统计
+            const stats = document.createElement('p');
+            stats.textContent = `匹配成功: ${matchResults.length} 个`;
+            stats.style.fontWeight = 'bold';
+            resultsContainer.appendChild(stats);
+        }
+        
+        
+        // 重命名并导出图片
+        function exportRenamedImages() {
+            if (matchResults.length === 0) {
+                alert('没有匹配结果可处理');
+                console.log('matchResults数组为空，无法重命名图片');
+                return;
+            }
+            
+            // 显示进度条
+            const progressContainer = document.getElementById('progress-container');
+            const progressBar = document.getElementById('progress');
+            const progressText = document.getElementById('progress-text');
+            progressContainer.style.display = 'block';
+            
+            // 禁用导出按钮
+            const buttons = document.querySelectorAll('button');
+            buttons.forEach(btn => {
+                if (btn.onclick === exportRenamedImages) {
+                    btn.disabled = true;
+                }
+            });
+            
+            // 创建一个ZIP文件
+            const zip = new JSZip();
+            
+            // 用于跟踪处理进度
+            let processedCount = 0;
+            
+            // 处理每个匹配的图片
+            matchResults.forEach(async (result, index) => {
+                // 查找原始图片文件
+                const originalImage = imageInfo.find(img => img.name === result.imageName);
+                
+                if (originalImage) {
+                    try {
+                        // 获取图片文件扩展名
+                        const fileExtension = originalImage.name.substring(originalImage.name.lastIndexOf('.'));
+                        const newFileName = `${result.newSkuCode}${fileExtension}`;
+                        
+                        // 读取文件内容
+                        const arrayBuffer = await originalImage.file.arrayBuffer();
+                        
+                        // 添加到ZIP文件
+                        zip.file(newFileName, arrayBuffer);
+                        
+                        console.log(`已添加图片到ZIP: ${originalImage.name} -> ${newFileName}`);
+                    } catch (error) {
+                        console.error(`处理图片 ${originalImage.name} 时出错:`, error);
+                    }
+                } else {
+                    console.warn(`未找到原始图片文件: ${result.imageName}`);
+                }
+                
+                // 更新进度
+                processedCount++;
+                const progress = Math.round((processedCount) / matchResults.length * 100);
+                progressBar.style.width = `${progress}%`;
+                progressText.textContent = `${progress}%`;
+                
+                // 当所有图片处理完成后，生成并下载ZIP文件
+                if (processedCount === matchResults.length) {
+                    // 生成ZIP文件并下载
+                    zip.generateAsync({ type: 'blob' }).then(function(content) {
+                        // 创建下载链接
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(content);
+                        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                        link.download = `重命名后的图片_${timestamp}.zip`;
+                        link.click();
+                        
+                        // 重置进度条
+                        setTimeout(() => {
+                            progressContainer.style.display = 'none';
+                            progressBar.style.width = '0%';
+                            progressText.textContent = '0%';
+                            
+                            // 重新启用按钮
+                            buttons.forEach(btn => {
+                                if (btn.onclick === exportRenamedImages) {
+                                    btn.disabled = false;
+                                }
+                            });
+                        }, 1000);
+                        
+                        console.log(`成功导出 ${matchResults.length} 个重命名的图片到ZIP文件`);
+                    }).catch(function(error) {
+                        console.error('生成ZIP文件时出错:', error);
+                        alert('生成ZIP文件时出错，请查看控制台了解详细信息');
+                        
+                        // 重置进度条
+                        progressContainer.style.display = 'none';
+                        progressBar.style.width = '0%';
+                        progressText.textContent = '0%';
+                        
+                        // 重新启用按钮
+                        buttons.forEach(btn => {
+                            if (btn.onclick === exportRenamedImages) {
+                                btn.disabled = false;
+                            }
+                        });
+                    });
+                }
+            });
+        }
+        
+        // 监听输入框变化，触发重新匹配
+        document.getElementById('suffix-input').addEventListener('input', function() {
+            performMatch();
+        });
+    </script>
+</body>
+</html>
