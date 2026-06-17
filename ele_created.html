@@ -346,34 +346,32 @@
                 // 转换为JSON以便操作
                 let jsonData = XLSX.utils.sheet_to_json(originalWorksheet);
                 
-                // 饿了么列位置设置 - 根据用户要求设置列位置
-                // A=商品条形码, B=商品名称, C=商品三级类目名称, D=重量, E=重量单位, F=产地, 
-                // G=净含量, H=品种, I=包装规格, J=售价, K=库存, L=商品最低起购量, M=商品状态, 
-                // N=店铺分类名称, O=商品自定义ID, P=货架号, Q=限购开始时间, R=限购结束时间, 
-                // S=限购周期, T=限购周期内每人限购件数, U=包装费, V=七天无理由退换
+                // 饿了么列位置设置 - 根据新格式设置列位置
+                // A=商品条形码, B=商品名称, C=商品三级类目名称, D=规格, E=重量, F=重量单位, 
+                // G=售价, H=库存, I=商品最低起购量, J=商品状态, K=店铺分类名称, L=商品自定义ID, 
+                // M=规格自定义ID, N=货架号, O=限购开始时间, P=限购结束时间, Q=限购周期, 
+                // R=限购周期内每人限购件数, S=包装费, T=七天无理由退换
                 const columnPositions = {
-                    barcode: 0,      // A列 - 商品条形码
-                    productName: 1, // B列 - 商品名称
-                    category: 2,    // C列 - 商品三级类目名称
-                    weight: 3,      // D列 - 重量
-                    unit: 4,        // E列 - 重量单位
-                    origin: 5,      // F列 - 产地
-                    netContent: 6,  // G列 - 净含量
-                    variety: 7,     // H列 - 品种
-                    packaging: 8,  // I列 - 包装规格
-                    price: 9,       // J列 - 售价
-                    stock: 10,      // K列 - 库存
-                    minPurchase: 11, // L列 - 商品最低起购量
-                    status: 12,     // M列 - 商品状态
-                    shopCategory: 13, // N列 - 店铺分类名称
-                    customId: 14,   // O列 - 商品自定义ID
-                    shelfNumber: 15, // P列 - 货架号
-                    limitStartTime: 16, // Q列 - 限购开始时间
-                    limitEndTime: 17,   // R列 - 限购结束时间
-                    limitCycle: 18,     // S列 - 限购周期
-                    limitPerPerson: 19, // T列 - 限购周期内每人限购件数
-                    packagingFee: 20,   // U列 - 包装费
-                    returnPolicy: 21    // V列 - 七天无理由退换
+                    barcode: 0,          // A列 - 商品条形码
+                    productName: 1,     // B列 - 商品名称
+                    category: 2,        // C列 - 商品三级类目名称
+                    specification: 3,   // D列 - 规格
+                    weight: 4,          // E列 - 重量
+                    unit: 5,            // F列 - 重量单位
+                    price: 6,           // G列 - 售价
+                    stock: 7,           // H列 - 库存
+                    minPurchase: 8,     // I列 - 商品最低起购量
+                    status: 9,          // J列 - 商品状态
+                    shopCategory: 10,   // K列 - 店铺分类名称
+                    customId: 11,       // L列 - 商品自定义ID
+                    specCustomId: 12,   // M列 - 规格自定义ID
+                    shelfNumber: 13,    // N列 - 货架号
+                    limitStartTime: 14, // O列 - 限购开始时间
+                    limitEndTime: 15,   // P列 - 限购结束时间
+                    limitCycle: 16,     // Q列 - 限购周期
+                    limitPerPerson: 17, // R列 - 限购周期内每人限购件数
+                    packagingFee: 18,   // S列 - 包装费
+                    returnPolicy: 19    // T列 - 七天无理由退换
                 };
                 
                 // 从第8行开始添加（行索引从0开始，所以是7）
@@ -399,81 +397,74 @@
                     
                     // 商品三级类目名称 (C列)
                     const categoryCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.category});
-                    newWorksheet[categoryCell] = { t: 's', v: '' };
+                    newWorksheet[categoryCell] = { t: 's', v: '其他' };
                     
-                    // 重量 (D列)
+                    // 规格 (D列)
+                    const specificationCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.specification});
+                    newWorksheet[specificationCell] = { t: 's', v: '' };
+                    
+                    // 重量 (E列)
                     const weightCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.weight});
                     newWorksheet[weightCell] = { t: 'n', v: 500, w: '500' };
                     
-                    // 重量单位 (E列)
+                    // 重量单位 (F列)
                     const unitCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.unit});
                     newWorksheet[unitCell] = { t: 's', v: 'g', w: 'g' };
                     
-                    // 产地 (F列)
-                    const originCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.origin});
-                    newWorksheet[originCell] = { t: 's', v: '' };
-                    
-                    // 净含量 (G列)
-                    const netContentCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.netContent});
-                    newWorksheet[netContentCell] = { t: 's', v: '' };
-                    
-                    // 品种 (H列)
-                    const varietyCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.variety});
-                    newWorksheet[varietyCell] = { t: 's', v: '' };
-                    
-                    // 包装规格 (I列)
-                    const packagingCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.packaging});
-                    newWorksheet[packagingCell] = { t: 's', v: '' };
-                    
-                    // 售价 (J列)
+                    // 售价 (G列)
                     const priceCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.price});
                     newWorksheet[priceCell] = { t: 'n', v: 199.00 };
                     
-                    // 库存 (K列)
+                    // 库存 (H列)
                     const stockCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.stock});
                     newWorksheet[stockCell] = { t: 'n', v: 999 };
                     
-                    // 商品最低起购量 (L列)
+                    // 商品最低起购量 (I列)
                     const minPurchaseCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.minPurchase});
                     newWorksheet[minPurchaseCell] = { t: 's', v: '' };
                     
-                    // 商品状态 (M列)
+                    // 商品状态 (J列)
                     const statusCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.status});
                     newWorksheet[statusCell] = { t: 's', v: '下架' };
                     
-                    // 店铺分类名称 (N列) - 使用输入框的值或图片所在文件夹名称
+                    // 店铺分类名称 (K列) - 使用输入框的值或图片所在文件夹名称
                     const shopCategoryCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.shopCategory});
                     const storeCategoryValue = document.getElementById('store-category-input').value.trim();
                     newWorksheet[shopCategoryCell] = { t: 's', v: storeCategoryValue || imgInfo.folderName || '' };
-                    // 商品自定义ID (O列)
+                    
+                    // 商品自定义ID (L列)
                     const customIdCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.customId});
                     newWorksheet[customIdCell] = { t: 's', v: '' };
                     
-                    // 货架号 (P列)
+                    // 规格自定义ID (M列)
+                    const specCustomIdCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.specCustomId});
+                    newWorksheet[specCustomIdCell] = { t: 's', v: '' };
+                    
+                    // 货架号 (N列)
                     const shelfNumberCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.shelfNumber});
                     newWorksheet[shelfNumberCell] = { t: 's', v: '' };
                     
-                    // 限购开始时间 (Q列)
+                    // 限购开始时间 (O列)
                     const limitStartTimeCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.limitStartTime});
                     newWorksheet[limitStartTimeCell] = { t: 's', v: '' };
                     
-                    // 限购结束时间 (R列)
+                    // 限购结束时间 (P列)
                     const limitEndTimeCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.limitEndTime});
                     newWorksheet[limitEndTimeCell] = { t: 's', v: '' };
                     
-                    // 限购周期 (S列)
+                    // 限购周期 (Q列)
                     const limitCycleCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.limitCycle});
                     newWorksheet[limitCycleCell] = { t: 's', v: '' };
                     
-                    // 限购周期内每人限购件数 (T列)
+                    // 限购周期内每人限购件数 (R列)
                     const limitPerPersonCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.limitPerPerson});
                     newWorksheet[limitPerPersonCell] = { t: 's', v: '' };
                     
-                    // 包装费 (U列)
+                    // 包装费 (S列)
                     const packagingFeeCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.packagingFee});
                     newWorksheet[packagingFeeCell] = { t: 's', v: '' };
                     
-                    // 七天无理由退换 (V列)
+                    // 七天无理由退换 (T列)
                     const returnPolicyCell = XLSX.utils.encode_cell({r: currentRow - 1, c: columnPositions.returnPolicy});
                     newWorksheet[returnPolicyCell] = { t: 's', v: '' };
                 });
@@ -482,10 +473,10 @@
                 const originalRange = XLSX.utils.decode_range(newWorksheet['!ref'] || 'A1:A1');
                 const lastDataRow = startRow + imageInfo.length;
                 
-                // 确保新范围包含所有新添加的数据，扩展到V列(第21列索引)
+                // 确保新范围包含所有新添加的数据，扩展到T列(第19列索引)
                 const newRange = {
                     s: { r: 0, c: 0 }, // 起始行列
-                    e: { r: Math.max(originalRange.e.r, lastDataRow), c: Math.max(originalRange.e.c, 21) } // 结束行列，确保包含到V列
+                    e: { r: Math.max(originalRange.e.r, lastDataRow), c: Math.max(originalRange.e.c, 19) } // 结束行列，确保包含到T列
                 };
                 
                 newWorksheet['!ref'] = XLSX.utils.encode_range(newRange);
