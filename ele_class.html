@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>饿了么商品分类处理工具</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin-bottom: 25px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #f8f9fa;
+        }
+        .section h3 {
+            color: #34495e;
+            margin-bottom: 15px;
+        }
+        .file-input-wrapper {
+            margin-bottom: 15px;
+        }
+        .file-input-wrapper input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px dashed #ddd;
+            border-radius: 6px;
+            background-color: #fafafa;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            overflow-x: auto;
+            display: block;
+            white-space: nowrap;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+            position: sticky;
+            top: 0;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .table-container {
+            max-height: 500px;
+            overflow: auto;
+            margin-top: 20px;
+        }
+        button {
+            padding: 12px 24px;
+            background-color: #00a0e9;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+            width: 100%;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #0089cc;
+        }
+        button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        .progress {
+            margin-top: 20px;
+            display: none;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            background-color: #00a0e9;
+            width: 0%;
+            transition: width 0.3s;
+        }
+        .progress-text {
+            text-align: center;
+            margin-top: 10px;
+            color: #666;
+        }
+        .results {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            display: none;
+        }
+        .results h4 {
+            color: #155724;
+            margin: 0 0 10px 0;
+        }
+        .download-btn {
+            background-color: #28a745;
+            margin-top: 10px;
+        }
+        .download-btn:hover {
+            background-color: #218838;
+        }
+        .column-info {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>饿了么商品分类处理工具</h2>
+
+        <div class="section">
+            <h3>1. 上传Excel文件</h3>
+            <div class="file-input-wrapper">
+                <input type="file" id="excelInput" accept=".xlsx,.xls" onchange="readExcelFile()">
+            </div>
+            <div id="columnInfo" class="column-info" style="display: none;"></div>
+        </div>
+
+        <div class="section" id="dataSection" style="display: none;">
+            <h3>2. 数据预览</h3>
+            <div class="table-container" id="tableContainer"></div>
+            <button id="processBtn" onclick="processData()">处理数据</button>
+        </div>
+
+        <div class="progress" id="progressDiv">
+            <div class="progress-bar">
+                <div class="progress-bar-fill" id="progressBarFill"></div>
+            </div>
+            <div class="progress-text" id="progressText">处理中...</div>
+        </div>
+
+        <div class="results" id="resultsDiv">
+            <h4>处理完成！</h4>
+            <p id="resultsText"></p>
+            <button class="download-btn" onclick="downloadProcessedExcel()">下载处理后的Excel文件</button>
+        </div>
+    </div>
+
+    <script>
+        let excelData = null;
+        let processedData = null;
+        let workbook = null; // 保存原始工作簿对象
+        let columnIndices = {}; // 存储各列的索引
+        let columnNames = []; // 存储所有列名
+
+        // 关键列名常量
+        const KEY_COLUMNS = {
+            PRODUCT_NAME: '商品名称',
+            ATTRIBUTE_NAME: '属性名称',
+            ATTRIBUTE_VALUE: '属性值（填写此列）',
+            FILL_REQUIREMENT: '填写要求'
+        };
+
+        function readExcelFile() {
+            const fileInput = document.getElementById('excelInput');
+            const file = fileInput.files[0];
+
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+
+                    // 转换为JSON数据
+                    excelData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                    console.log(`Excel文件读取完成，共 ${excelData.length} 行数据`);
+
+                    // 初始化列信息
+                    initializeColumnInfo();
+
+                    // 显示数据预览
+                    displayExcelData();
+
+                    // 显示列信息
+                    displayColumnInfo();
+
+                    // 显示数据区域
+                    document.getElementById('dataSection').style.display = 'block';
+                } catch (error) {
+                    console.error('读取Excel文件出错:', error);
+                    alert('读取Excel文件出错，请确保文件格式正确');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function initializeColumnInfo() {
+            columnIndices = {};
+            columnNames = [];
+
+            if (!excelData || excelData.length === 0) return;
+
+            // 获取所有列名
+            columnNames = [...excelData[0]];
+
+            // 遍历表头，记录每列的索引
+            for (let i = 0; i < excelData[0].length; i++) {
+                const header = excelData[0][i];
+                if (header) {
+                    columnIndices[header] = i;
+                }
+            }
+
+            console.log('检测到的列:', columnNames);
+            console.log('列索引映射:', columnIndices);
+        }
+
+        function isKeyColumn(colName) {
+            return colName === KEY_COLUMNS.ATTRIBUTE_VALUE ||
+                   colName === KEY_COLUMNS.FILL_REQUIREMENT ||
+                   colName === KEY_COLUMNS.ATTRIBUTE_NAME ||
+                   colName === KEY_COLUMNS.PRODUCT_NAME;
+        }
+
+        function displayColumnInfo() {
+            const columnInfoDiv = document.getElementById('columnInfo');
+            columnInfoDiv.innerHTML = '';
+
+            if (columnNames.length === 0) return;
+
+            const infoTitle = document.createElement('strong');
+            infoTitle.textContent = '检测到的列:';
+            columnInfoDiv.appendChild(infoTitle);
+
+            const columnList = document.createElement('ul');
+            columnList.style.marginTop = '5px';
+
+            columnNames.forEach((colName, index) => {
+                const li = document.createElement('li');
+                li.textContent = `列${index + 1}: ${colName}`;
+
+                // 标记关键列
+                if (isKeyColumn(colName)) {
+                    li.style.fontWeight = 'bold';
+                    li.style.color = '#dc3545';
+                }
+
+                columnList.appendChild(li);
+            });
+
+            columnInfoDiv.appendChild(columnList);
+            columnInfoDiv.style.display = 'block';
+        }
+
+        function displayExcelData() {
+            if (!excelData || excelData.length === 0) return;
+
+            const tableContainer = document.getElementById('tableContainer');
+            tableContainer.innerHTML = '';
+
+            const table = document.createElement('table');
+
+            // 创建表头
+            const headerRow = document.createElement('tr');
+            for (let i = 0; i < excelData[0].length; i++) {
+                const th = document.createElement('th');
+                th.textContent = excelData[0][i] || `列${i+1}`;
+
+                // 标记关键列
+                if (isKeyColumn(excelData[0][i])) {
+                    th.style.backgroundColor = '#f8d7da';
+                    th.style.fontWeight = 'bold';
+                }
+
+                headerRow.appendChild(th);
+            }
+            table.appendChild(headerRow);
+
+            // 创建数据行（只显示前10行）
+            const maxRows = Math.min(10, excelData.length - 1);
+            for (let i = 1; i <= maxRows; i++) {
+                const row = document.createElement('tr');
+                for (let j = 0; j < excelData[i].length; j++) {
+                    const td = document.createElement('td');
+                    td.textContent = excelData[i][j] || '';
+
+                    // 标记关键列的单元格
+                    const header = excelData[0][j];
+                    if (isKeyColumn(header)) {
+                        td.style.backgroundColor = '#f8d7da';
+                    }
+
+                    row.appendChild(td);
+                }
+                table.appendChild(row);
+            }
+
+            tableContainer.appendChild(table);
+
+            // 如果数据行数超过10行，显示提示
+            if (excelData.length > 11) {
+                const moreInfo = document.createElement('p');
+                moreInfo.textContent = `显示前10行数据，共${excelData.length - 1}行数据`;
+                moreInfo.style.textAlign = 'center';
+                moreInfo.style.marginTop = '10px';
+                moreInfo.style.color = '#666';
+                tableContainer.appendChild(moreInfo);
+            }
+        }
+
+        function processData() {
+            if (!excelData || excelData.length === 0) return;
+
+            const progressDiv = document.getElementById('progressDiv');
+            const progressBarFill = document.getElementById('progressBarFill');
+            const progressText = document.getElementById('progressText');
+
+            progressDiv.style.display = 'block';
+
+            // 创建一个新的数据数组，用于存储处理后的数据
+            processedData = [];
+
+            // 添加表头（确保所有列都被保留）
+            processedData.push([...excelData[0]]);
+
+            // 检查必要的列是否存在
+            const attributeValueIndex = columnIndices[KEY_COLUMNS.ATTRIBUTE_VALUE];
+            const fillRequirementIndex = columnIndices[KEY_COLUMNS.FILL_REQUIREMENT];
+            const fillFormatIndex = columnIndices['填写格式'];
+
+            if (attributeValueIndex === undefined || fillRequirementIndex === undefined) {
+                alert('未找到"' + KEY_COLUMNS.ATTRIBUTE_VALUE + '"或"' + KEY_COLUMNS.FILL_REQUIREMENT + '"列，请检查Excel文件格式');
+                progressDiv.style.display = 'none';
+                return;
+            }
+
+            // 处理每一行数据
+            let processedCount = 0;
+            const totalRows = excelData.length - 1; // 减去表头行
+            const productNameIndex = columnIndices[KEY_COLUMNS.PRODUCT_NAME];
+            const attributeNameIndex = columnIndices[KEY_COLUMNS.ATTRIBUTE_NAME];
+
+            // 用于匹配"数字+单位"的正则表达式（如 600g、1.5kg、500克、2斤 等）
+            const numberUnitPattern = /(\d+(?:\.\d+)?)\s*(g|kg|G|KG|ml|ML|l|L|斤|两|克|千克|毫升|升)$/;
+
+            // "数字+单位类型"下属性名称特判默认值
+            const attributeDefaults = {
+                '保质期': '90天',
+                '礼盒水果种数': '5种',
+                '包装规格': '5粒',
+                '个数': '5个',
+                '单果果径': '其他',
+                '果篮水果种数':'5种',
+                '枝数/朵数': '5枝',
+                '包装数量': '5只'
+            };
+
+            console.log(`开始处理数据，总行数: ${totalRows}`);
+
+            for (let i = 1; i < excelData.length; i++) {
+                // 创建新行，复制原始行的所有数据（确保每一列都被保留）
+                const newRow = [...excelData[i]];
+
+                // 获取"填写格式"列的内容
+                const fillFormat = fillFormatIndex !== undefined ? newRow[fillFormatIndex] : '';
+
+                // 根据填写格式决定必填项的处理方式
+                if (fillFormat === '文本') {
+                    // 文本格式：写"暂无"
+                    newRow[attributeValueIndex] = '暂无';
+                } else if (fillFormat === '数字+单位类型' && productNameIndex !== undefined) {
+                    // 数字+单位类型：先判断是否在特判默认值列表中
+                    const attributeName = attributeNameIndex !== undefined ? newRow[attributeNameIndex] : '';
+                    if (attributeDefaults.hasOwnProperty(attributeName)) {
+                        // 命中特判属性（如保质期、礼盒水果种数、包装规格）使用对应默认值
+                        newRow[attributeValueIndex] = attributeDefaults[attributeName];
+                    } else {
+                        // 从商品名称中截取末尾的数字+单位（如"600g"）
+                        const productName = newRow[productNameIndex] || '';
+                        const match = productName.match(numberUnitPattern);
+                        if (match) {
+                            // 中文单位转英文符号（按对应换算比例）
+                            const value = parseFloat(match[1]);
+                            const unit = match[2];
+                            let displayValue;
+                            switch (unit) {
+                                case '斤':
+                                    displayValue = (value * 500) + 'g';
+                                    break;
+                                case '两':
+                                    displayValue = (value * 50) + 'g';
+                                    break;
+                                case '克':
+                                    displayValue = value + 'g';
+                                    break;
+                                case '千克':
+                                    displayValue = value + 'kg';
+                                    break;
+                                case '毫升':
+                                    displayValue = value + 'ml';
+                                    break;
+                                case '升':
+                                    displayValue = (value * 1000) + 'ml';
+                                    break;
+                                default:
+                                    // 已是英文单位（g/kg/ml/L 等）原样保留
+                                    displayValue = match[0];
+                            }
+                            newRow[attributeValueIndex] = displayValue;
+                        } else {
+                            // 名称中读取不到可数单位时，默认填 250g
+                            newRow[attributeValueIndex] = '250g';
+                        }
+                    }
+                } else {
+                    // 其他格式：按原来的逻辑处理
+                    const fillRequirement = newRow[fillRequirementIndex];
+                    if (fillRequirement && typeof fillRequirement === 'string') {
+                        // 以逗号分割"填写要求"并获取第一个值
+                        const values = fillRequirement.split(',');
+                        const firstValue = values[0].trim();
+
+                        // 将第一个值填入"属性值（填写此列）"列
+                        newRow[attributeValueIndex] = firstValue;
+                    }
+                }
+
+                // 将处理后的行添加到结果数组（包含所有列的数据）
+                processedData.push(newRow);
+
+                processedCount++;
+                const progress = (processedCount / totalRows) * 100;
+                progressBarFill.style.width = progress + '%';
+                progressText.textContent = `处理中... ${processedCount}/${totalRows}`;
+            }
+
+            console.log(`数据处理完成，共处理 ${processedCount} 行，processedData长度: ${processedData.length}`);
+
+            // 处理完成，隐藏进度条并自动下载文件
+            progressDiv.style.display = 'none';
+
+            // 显示简短的成功消息
+            const resultsDiv = document.getElementById('resultsDiv');
+            const resultsText = document.getElementById('resultsText');
+            resultsDiv.style.display = 'block';
+            resultsText.textContent = `成功处理了 ${totalRows} 行数据，正在下载文件...`;
+
+            // 自动下载文件
+            setTimeout(() => {
+                downloadProcessedExcel();
+            }, 500);
+        }
+
+        function downloadProcessedExcel() {
+            if (!processedData || processedData.length === 0) {
+                console.error('没有可导出的数据');
+                return;
+            }
+
+            console.log(`开始导出数据，共 ${processedData.length} 行（包括表头）`);
+
+            // 创建一个新的工作簿
+            const newWorkbook = XLSX.utils.book_new();
+
+            // 将处理后的数据转换为工作表（包含所有列的数据）
+            const worksheet = XLSX.utils.aoa_to_sheet(processedData);
+
+            console.log('工作表创建完成');
+
+            // 复制原始工作簿的单元格格式（如果存在）
+            if (workbook) {
+                const originalSheet = workbook.Sheets[workbook.SheetNames[0]];
+
+                // 复制单元格格式
+                for (const cellAddress in originalSheet) {
+                    if (cellAddress[0] === '!') continue; // 跳过特殊属性
+
+                    const cell = originalSheet[cellAddress];
+                    if (cell && worksheet[cellAddress]) {
+                        // 复制格式相关的属性
+                        if (cell.s) {
+                            worksheet[cellAddress].s = cell.s;
+                        }
+                        if (cell.z) {
+                            worksheet[cellAddress].z = cell.z;
+                        }
+                        if (cell.f) {
+                            worksheet[cellAddress].f = cell.f;
+                        }
+                    }
+                }
+
+                // 复制工作表级别的属性
+                if (originalSheet['!cols']) {
+                    worksheet['!cols'] = originalSheet['!cols'];
+                }
+                if (originalSheet['!rows']) {
+                    worksheet['!rows'] = originalSheet['!rows'];
+                }
+                if (originalSheet['!merges']) {
+                    worksheet['!merges'] = originalSheet['!merges'];
+                }
+            }
+
+            // 添加工作表到工作簿
+            XLSX.utils.book_append_sheet(newWorkbook, worksheet, "处理后的数据");
+
+            console.log('工作表添加到工作簿完成');
+
+            // 生成时间戳
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            const timestamp = `${year}${month}${day}_${hours}${minutes}${seconds}`;
+
+            // 下载Excel文件
+            const fileName = `饿了么商品分类处理结果_${timestamp}.xlsx`;
+            console.log(`开始下载文件: ${fileName}`);
+
+            try {
+                XLSX.writeFile(newWorkbook, fileName);
+                console.log('文件下载完成');
+            } catch (error) {
+                console.error('文件下载出错:', error);
+                alert('文件下载出错，请重试');
+            }
+        }
+    </script>
+</body>
+</html>

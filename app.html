@@ -222,6 +222,11 @@
                     <span class="tab-title" title="美团商品分类处理">美团商品分类处理</span>
                     <div class="refresh-btn" onclick="refreshTab('meituanClass', event)">↻</div>
                 </div>
+                <!-- 添加饿了么商品分类处理标签页 -->
+                <div class="tab" onclick="switchTab('eleClass')">
+                    <span class="tab-title" title="饿了么商品分类处理">饿了么商品分类处理</span>
+                    <div class="refresh-btn" onclick="refreshTab('eleClass', event)">↻</div>
+                </div>
                 <!-- 添加京东批量新建标签页 -->
                 <div class="tab" onclick="switchTab('jd')">
                     <span class="tab-title" title="京东批量新建excl">京东新建excl</span>
@@ -253,6 +258,8 @@
             <iframe id="addName-frame" src="addName.html"></iframe>
             <!-- 添加美团商品分类处理iframe -->
             <iframe id="meituanClass-frame" src="meituan_class.html"></iframe>
+            <!-- 添加饿了么商品分类处理iframe -->
+            <iframe id="eleClass-frame" src="ele_class.html"></iframe>
             <!-- 添加京东批量新建iframe -->
             <iframe id="jd-frame" src="jd_created.html"></iframe>
             <!-- 添加京东图片名称匹配iframe -->
